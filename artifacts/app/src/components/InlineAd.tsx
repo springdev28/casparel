@@ -24,6 +24,7 @@ import { readAdConsent, subscribeToAdConsent } from "../lib/ad-consent";
 declare global {
   interface Window {
     adsbygoogle?: unknown[];
+    casparelNativeAdReadiness?: boolean;
   }
 }
 
@@ -73,6 +74,30 @@ export function InlineAd({ className }: { className?: string }) {
   const nativeSlot = useRef<HTMLElement>(null);
   const [dismissed, setDismissed] = useState(false);
   const [nativeEligible, setNativeEligible] = useState(nativeAdsEligible);
+  const [nativeCreativeReady, setNativeCreativeReady] = useState(false);
+  const [nativeReadinessSupported, setNativeReadinessSupported] = useState(() => window.casparelNativeAdReadiness === true);
+  // Older installed builds do not publish creative readiness. Keep their
+  // existing placement contract until the native update is installed.
+  const nativeSlotReady = !nativeReadinessSupported || nativeCreativeReady;
+
+  useEffect(() => {
+    const update = () => setNativeReadinessSupported(window.casparelNativeAdReadiness === true);
+    window.addEventListener('casparel-native-ad-support', update);
+    return () => window.removeEventListener('casparel-native-ad-support', update);
+  }, []);
+
+  useEffect(() => {
+    setNativeCreativeReady(false);
+    const update = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== 'object' || !('id' in detail) || !('ready' in detail)) return;
+      if (detail.id === `inline:${location}` && typeof detail.ready === 'boolean') {
+        setNativeCreativeReady(detail.ready);
+      }
+    };
+    window.addEventListener('casparel-native-ad-ready', update);
+    return () => window.removeEventListener('casparel-native-ad-ready', update);
+  }, [location]);
 
   const nativeShell = (() => {
     try {
@@ -123,14 +148,16 @@ export function InlineAd({ className }: { className?: string }) {
         if (!element) return;
         const rect = element.getBoundingClientRect();
         const visible =
-          rect.top >= NATIVE_AD_SAFE_TOP && rect.bottom <= window.innerHeight;
+          nativeSlotReady && rect.top >= NATIVE_AD_SAFE_TOP && rect.bottom <= window.innerHeight;
         postToNative({
           type: "native-ad-placement",
           id: placementId,
           top: rect.top,
           left: rect.left,
           width: rect.width,
-          height: rect.height,
+          // Keep a valid offscreen loading surface without reserving a blank
+          // card in the page. Native reports when a real creative is ready.
+          height: NATIVE_AD_SLOT_HEIGHT,
           visible,
         });
       });
@@ -158,7 +185,7 @@ export function InlineAd({ className }: { className?: string }) {
         visible: false,
       });
     };
-  }, [location, nativePlacementEligible]);
+  }, [location, nativePlacementEligible, nativeSlotReady]);
 
   const eligible =
     pathAllowsWebAd(location) &&
@@ -179,11 +206,12 @@ export function InlineAd({ className }: { className?: string }) {
     return (
       <aside
         ref={nativeSlot}
-        aria-label="Advertisement"
+        aria-label={nativeSlotReady ? "Advertisement" : undefined}
+        aria-hidden={!nativeSlotReady}
         data-testid="native-inline-ad-placeholder"
         data-native-ad-placement={`inline:${location}`}
-        className={"my-4 w-full min-w-0 max-w-full " + (className ?? "")}
-        style={{ height: NATIVE_AD_SLOT_HEIGHT }}
+        className={"w-full min-w-0 max-w-full " + (className ?? "")}
+        style={{ height: nativeSlotReady ? NATIVE_AD_SLOT_HEIGHT : 0, marginBlock: nativeSlotReady ? 16 : 0 }}
       >
         <span className="sr-only">Advertisement</span>
       </aside>

@@ -8,6 +8,7 @@
 export function SponsoredLearningResourceCard(_props: {
   placementId?: string;
   onDismiss?: () => void;
+  onAvailabilityChange?: (ready: boolean) => void;
 }) {
   return null;
 }

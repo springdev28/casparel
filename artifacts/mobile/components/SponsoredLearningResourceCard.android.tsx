@@ -43,9 +43,11 @@ function adUnitForThisBuild(ads: GoogleMobileAdsModule): string | null {
 export function SponsoredLearningResourceCard({
   placementId = 'default',
   onDismiss,
+  onAvailabilityChange,
 }: {
   placementId?: string;
   onDismiss?: () => void;
+  onAvailabilityChange?: (ready: boolean) => void;
 }) {
   const { t } = useLanguage();
   const colors = useColors();
@@ -65,6 +67,11 @@ export function SponsoredLearningResourceCard({
     nativeAd: NativeAd;
     ads: GoogleMobileAdsModule;
   } | null>(null);
+
+  useEffect(() => {
+    onAvailabilityChange?.(creative !== null && !dismissed && canRequestAds);
+    return () => onAvailabilityChange?.(false);
+  }, [creative, dismissed, canRequestAds, onAvailabilityChange]);
 
   useEffect(() => {
     logAdDiagnostic('placement-mounted', { placement: 'inline' });

@@ -115,6 +115,8 @@ flow immediately below the toolbar, as the web placement does. The new
 changes, visible placement messages without scrolling, dismissal, no AdSense
 requests inside the native shell, and no placement on the plans page. It mocks
 account responses and the WebView message bridge, not an actual AdMob creative.
+New native builds publish creative readiness so unavailable inventory leaves no
+blank card. Older installed builds retain their existing placement contract.
 
 Failed UMP updates without usable cached consent, and failed Mobile Ads startup,
 now retry after 30 seconds while foregrounded or upon returning to the app.
