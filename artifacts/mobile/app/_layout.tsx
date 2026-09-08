@@ -3,7 +3,8 @@
  * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
  */
 import React, { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -111,6 +112,20 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const { fontsLoaded, fontError } = useDesignSystemFonts();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (AppState.currentState !== null) {
+      focusManager.setFocused(AppState.currentState === 'active');
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      focusManager.setFocused(state === 'active');
+    });
+    return () => {
+      subscription.remove();
+      focusManager.setFocused(undefined);
+    };
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -16,7 +17,10 @@ import {
   BackHandler,
   Linking,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,6 +39,7 @@ import {
   type NativeAdPlacement,
 } from '@/utils/native-ad-placement';
 import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
+import { initialWorkspaceLoad, workspaceLoadReducer } from '@/utils/workspace-load';
 import {
   useNotifications,
   type NotificationPreferences,
@@ -57,7 +62,11 @@ export default function MobileWebAppScreen() {
   const { sync: syncNotifications } = useNotifications();
   const webView = useRef<WebView>(null);
   const { token, logout, updateToken } = useAuth();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+  const entryUrl = `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}`;
+  const [load, dispatchLoad] = useReducer(workspaceLoadReducer, entryUrl, initialWorkspaceLoad);
+
+  useEffect(() => { dispatchLoad({ type: 'open', url: entryUrl }); }, [entryUrl]);
   const {
     soundMuted,
     adsDisabled,
@@ -180,19 +189,24 @@ export default function MobileWebAppScreen() {
       const subscription = BackHandler.addEventListener(
         'hardwareBackPress',
         () => {
+          if (load.failed) {
+            router.navigate('/home');
+            return true;
+          }
           if (!canGoBack) return false;
           webView.current?.goBack();
           return true;
         },
       );
       return () => subscription.remove();
-    }, [canGoBack]),
+    }, [canGoBack, load.failed, router]),
   );
 
   function syncNavigation(state: WebViewNavigation) {
     setCanGoBack(state.canGoBack);
     const destination = classifyMobileWebUrl(state.url, apiOrigin);
     if (destination.kind === 'internal') {
+      dispatchLoad({ type: 'navigation', url: destination.url });
       if (destination.path !== path) {
         setNativeAdPlacement((current) =>
           current ? { ...current, visible: false } : null,
@@ -262,10 +276,11 @@ export default function MobileWebAppScreen() {
     >
       <View style={styles.webArea}>
         <WebView
+          key={load.generation}
           ref={webView}
-          source={{
-            uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}`,
-          }}
+          accessibilityElementsHidden={load.failed}
+          importantForAccessibility={load.failed ? 'no-hide-descendants' : 'auto'}
+          source={{ uri: load.sourceUrl }}
           originWhitelist={[
             // Derived from the configured origin, not hardcoded, so a staging
             // build pointed at another host still renders its own workspace.
@@ -291,12 +306,42 @@ export default function MobileWebAppScreen() {
             </View>
           )}
           onNavigationStateChange={syncNavigation}
+          onLoadStart={(event) => {
+            const destination = classifyMobileWebUrl(event.nativeEvent.url, apiOrigin);
+            if (destination.kind === 'internal') dispatchLoad({ type: 'loading', url: destination.url });
+          }}
+          onError={() => dispatchLoad({ type: 'failure' })}
+          onHttpError={(event) => dispatchLoad({ type: 'failure', url: event.nativeEvent.url })}
+          onRenderProcessGone={() => dispatchLoad({ type: 'failure' })}
+          onContentProcessDidTerminate={() => dispatchLoad({ type: 'failure' })}
+          renderError={() => <View />}
           onMessage={receiveMessage}
           onShouldStartLoadWithRequest={(request) => {
             return openDestination(request.url, false);
           }}
         />
-        {nativeAdPlacement && shouldShowSponsoredAd(path) && canRequestAds ? (
+        {load.failed ? (
+          <ScrollView
+            testID="workspace-load-error"
+            style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, zIndex: 20 }]}
+            contentContainerStyle={styles.errorContent}
+          >
+            <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+              {t('Casparel could not load this workspace. Please try again.')}
+            </Text>
+            <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
+              {t('Check your connection and try again.')}
+            </Text>
+            <Pressable accessibilityRole="button" style={[styles.errorButton, { backgroundColor: colors.primary }]}
+              onPress={() => { setCanGoBack(false); setNativeAdPlacement(null); dispatchLoad({ type: 'retry' }); }}>
+              <Text style={{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansSemiBold }}>{t('Try again')}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" style={styles.errorButton} onPress={() => router.navigate('/home')}>
+              <Text style={{ color: colors.primary }}>{t('Go to home screen')}</Text>
+            </Pressable>
+          </ScrollView>
+        ) : null}
+        {!load.failed && nativeAdPlacement && shouldShowSponsoredAd(path) && canRequestAds ? (
           <View
             pointerEvents={nativeAdPlacement.visible ? 'box-none' : 'none'}
             style={[
@@ -328,6 +373,10 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   webArea: { flex: 1, position: 'relative' },
   loading: { alignItems: 'center', justifyContent: 'center' },
+  errorContent: { flexGrow: 1, justifyContent: 'center', padding: 28, gap: 16 },
+  errorTitle: { fontSize: 22, lineHeight: 30, textAlign: 'center' },
+  errorMessage: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
+  errorButton: { minHeight: 48, borderRadius: 12, padding: 14, alignItems: 'center', justifyContent: 'center' },
   nativeAdOverlay: {
     position: 'absolute',
     zIndex: 10,
