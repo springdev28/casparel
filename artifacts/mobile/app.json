@@ -69,7 +69,14 @@
         }
       ],
       "react-native-google-mobile-ads",
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

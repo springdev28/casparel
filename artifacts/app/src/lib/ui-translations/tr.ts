@@ -10,6 +10,11 @@
  * (Casparel, Google Classroom, Quizlet, Pro …) stay untranslated.
  */
 const TR: Record<string, string> = {
+  "Close this ad and show the next": "Bu reklamı kapat ve sonrakini göster",
+  "Play quick tones for button taps, completed work, answers, and alerts on this device.": "Bu cihazda düğmelere dokunurken, çalışma tamamlandığında, yanıtlar ve uyarılar için kısa sesler çal.",
+  "Keep your sound choice for following ads. Changing it here replaces the current ad.": "Ses tercihin sonraki reklamlarda korunur. Buradan değiştirmek mevcut reklamı yenisiyle değiştirir.",
+  "Use the sound control inside each video advertisement.": "Her video reklamın kendi ses kontrolünü kullan.",
+
   "Your purchase is complete. Your account is syncing; please do not purchase again.": "Satın alma işlemin tamamlandı. Hesabın eşitleniyor; lütfen yeniden satın alma.",
   "You already have a subscription. Manage it through the store where you purchased it.": "Zaten bir aboneliğin var. Aboneliğini satın aldığın mağazadan yönet.",
   "Payment complete. Your account has been refreshed.": "Ödeme tamamlandı. Hesabın güncellendi.",

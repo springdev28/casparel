@@ -12,10 +12,11 @@ import type { SoundKind } from "./sound-effects";
  * and the arbitration that keeps a page's own cue from stacking on top of the
  * generic toast tone a moment later.
  *
- * The synthesizer itself (lib/sound-effects.ts) is loaded with a dynamic
- * import on the first audible call, so the slimmed landing bundle and muted
- * sessions never carry it.
+ * The audio context is unlocked inside the gesture; sound recipes remain
+ * lazy, so a first tap also works in Android WebView.
  */
+
+import { prepareAudio } from "./audio-context";
 
 export type { SoundKind } from "./sound-effects";
 export type CelebrationIntensity = "burst" | "full";
@@ -29,18 +30,21 @@ export interface CelebrationEvent {
  * account-reset sweep can clear the key mid-session without breaking anything.
  */
 const SOUND_KEY = "schoolar_sound_effects";
+let fallbackSoundEnabled = true;
 
 export function isSoundEnabled(): boolean {
   try {
     return localStorage.getItem(SOUND_KEY) !== "off";
   } catch {
-    return true;
+    return fallbackSoundEnabled;
   }
 }
 
 export function setSoundEnabled(enabled: boolean): void {
+  fallbackSoundEnabled = enabled;
   try {
     localStorage.setItem(SOUND_KEY, enabled ? "on" : "off");
+    (window as Window & { ReactNativeWebView?: { postMessage(value: string): void } }).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'sound-effects', enabled }));
   } catch {
     // Storage can be blocked entirely; the toggle then only lasts the session.
   }
@@ -63,9 +67,8 @@ const TOAST_DEFERENCE_MS = 400;
 export function playFeedback(kind: SoundKind, opts?: { pitch?: number }): void {
   if (typeof window === "undefined" || !isSoundEnabled()) return;
   lastExplicitPlayAt = Date.now();
-  void import("./sound-effects")
-    .then((m) => m.playTone(kind, opts))
-    .catch(() => {});
+  prepareAudio();
+  void import("./sound-effects").then(m => { if (isSoundEnabled()) m.playTone(kind, opts); }).catch(() => {});
 }
 
 /**
@@ -75,9 +78,7 @@ export function playFeedback(kind: SoundKind, opts?: { pitch?: number }): void {
 export function playToastCue(variant: "default" | "destructive"): void {
   if (typeof window === "undefined" || !isSoundEnabled()) return;
   if (Date.now() - lastExplicitPlayAt < TOAST_DEFERENCE_MS) return;
-  void import("./sound-effects")
-    .then((m) => m.playTone(variant === "destructive" ? "error" : "notify"))
-    .catch(() => {});
+  void import("./sound-effects").then(m => { if (isSoundEnabled()) m.playTone(variant === "destructive" ? "error" : "notify"); }).catch(() => {});
 }
 
 type CelebrationListener = (event: CelebrationEvent) => void;
@@ -107,4 +108,11 @@ export function celebrate(intensity: CelebrationIntensity = "burst"): void {
       // One bad subscriber must not stop the rest.
     }
   }
+}
+
+/** Ordinary controls get a quiet tick; richer page cues take priority. */
+export function playInteractionCue(): void {
+  if (!isSoundEnabled() || Date.now() - lastExplicitPlayAt < 90) return;
+  prepareAudio();
+  void import('./sound-effects').then(m => { if (isSoundEnabled()) m.playTone('tick'); }).catch(() => {});
 }

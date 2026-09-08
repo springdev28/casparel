@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { useToast } from "@workspace/edu-ds/hooks/use-toast";
 
+import { InteractionFeedback } from "./InteractionFeedback";
 import { CelebrationOverlay } from "./CelebrationOverlay";
 import { playToastCue } from "../lib/feedback";
 
@@ -63,6 +64,7 @@ export function FeedbackToaster() {
 
   return (
     <>
+      <InteractionFeedback />
       <Toaster />
       <CelebrationOverlay />
     </>

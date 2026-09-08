@@ -26,6 +26,7 @@
     "@workspace/edu-ds": "workspace:*",
     "@workspace/plan-economics": "workspace:*",
     "expo": "~54.0.27",
+    "expo-audio": "~1.1.1",
     "expo-blur": "~15.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.11",

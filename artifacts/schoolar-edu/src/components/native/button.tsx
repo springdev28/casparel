@@ -4,10 +4,13 @@
  */
 // @ts-nocheck
 // react-native / expo-haptics only available in Expo context
-import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { nativeFeedback } from "../../lib/native-feedback";
+import { AccessibilityInfo, ActivityIndicator, Animated, Pressable, StyleSheet, Text } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useColors } from "../../hooks/use-colors";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export type ButtonVariant =
   | "default"
@@ -37,10 +40,24 @@ export function Button({
   style,
 }: ButtonProps) {
   const colors = useColors();
+  const pop = useRef(new Animated.Value(0)).current;
+  const [pressed, setPressed] = useState(false);
+  const [reduced, setReduced] = useState(true);
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(value => { if (mounted) setReduced(value); });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
+    return () => { mounted = false; subscription.remove(); pop.stopAnimation(); };
+  }, [pop]);
 
   const handlePress = () => {
     if (disabled || loading) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    nativeFeedback('tick');
+    if (!reduced) {
+      pop.setValue(1);
+      Animated.timing(pop, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+    }
     onPress?.();
   };
 
@@ -83,12 +100,16 @@ export function Button({
   };
 
   return (
-    <Pressable
+    <AnimatedPressable
+      accessibilityRole="button"
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       onPress={handlePress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         {
+          transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) }],
           borderRadius: colors.radius,
           backgroundColor: bgMap[variant],
           borderColor: borderMap[variant],
@@ -99,6 +120,7 @@ export function Button({
         style,
       ]}
     >
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: fgMap[variant], opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0, 0.16] }) }]} />
       {loading ? (
         <ActivityIndicator size="small" color={fgMap[variant]} />
       ) : typeof children === "string" ? (
@@ -117,7 +139,7 @@ export function Button({
       ) : (
         children
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

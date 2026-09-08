@@ -1059,7 +1059,7 @@ export default function AppShell({ children }: AppShellProps) {
         </aside>
 
         {/* Mobile top bar */}
-        <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden app-nav-surface">
+        <div data-native-ad-header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden app-nav-surface">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
               <Button
@@ -1240,6 +1240,7 @@ export default function AppShell({ children }: AppShellProps) {
         {/* Main content */}
         <main className="relative min-w-0 flex-1 overflow-auto bg-background pt-14 text-foreground md:pt-0">
           <div
+            data-native-ad-boundary
             className="sticky top-0 z-40 flex h-11 items-center justify-end gap-1 border-b bg-background/90 px-2 backdrop-blur md:h-12 md:px-4"
             style={
               {

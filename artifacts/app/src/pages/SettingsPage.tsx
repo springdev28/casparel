@@ -93,6 +93,12 @@ export default function SettingsPage() {
   // office vs. home), not an account trait worth roaming across devices.
   const [soundOn, setSoundOn] = useState(isSoundEnabled);
 
+  useEffect(() => {
+    const sync = () => setSoundOn(isSoundEnabled());
+    window.addEventListener('casparel-sound-effects-change', sync);
+    return () => window.removeEventListener('casparel-sound-effects-change', sync);
+  }, []);
+
   function changeSoundEnabled(checked: boolean) {
     setSoundEnabled(checked);
     setSoundOn(checked);
@@ -287,8 +293,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="font-semibold">Sound effects</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Play soft tones for completed work, answers, and alerts on this
-                device.
+                Play quick tones for button taps, completed work, answers, and alerts on this device.
               </p>
             </div>
           </div>
@@ -305,16 +310,17 @@ export default function SettingsPage() {
             <div>
               <h2 className="font-semibold">Ad sound</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Play video ads with sound by default. Muting one ad mutes
-                them all.
+                {nativeAds.isNativeShell
+                  ? "Keep your sound choice for following ads. Changing it here replaces the current ad."
+                  : "Use the sound control inside each video advertisement."}
               </p>
             </div>
           </div>
-          <Switch
+          {nativeAds.isNativeShell && <Switch
             checked={!soundMuted}
             onCheckedChange={changeAdSound}
             aria-label="Play ad sound"
-          />
+          />}
         </section>
 
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">

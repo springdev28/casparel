@@ -7,7 +7,8 @@
 /** iOS and web are intentionally ad-free in the current product policy. */
 export function SponsoredLearningResourceCard(_props: {
   placementId?: string;
-  onDismiss?: () => void;
+  visible?: boolean;
+  onHeightChange?: (height: number) => void;
   onAvailabilityChange?: (ready: boolean) => void;
 }) {
   return null;

@@ -14,6 +14,8 @@
  * Google Classroom, the App Store.
  */
 const TR: Record<string, string> = {
+  "Close this ad and show the next": "Bu reklamı kapat ve sonrakini göster",
+
   "My workspace": "Çalışma alanım",
   "LEARN WITH CONFIDENCE": "GÜVENLE ÖĞREN",
   "A clearer path to learning.": "Öğrenmek için daha net bir yol.",
