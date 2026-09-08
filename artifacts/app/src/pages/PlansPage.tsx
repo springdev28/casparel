@@ -197,7 +197,7 @@ function TierColumn({
       }
     >
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-base">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
           {card.name}
           {isCurrent ? (
             <span
@@ -277,12 +277,12 @@ function TierColumn({
                 return (
                   <Button
                     key={pkg.id}
-                    className="w-full gap-2"
+                    className="h-auto min-h-10 w-full gap-2 whitespace-normal py-2 text-center"
                     variant="outline"
                     disabled
                     data-testid={`current-package-${pkg.id}`}
                   >
-                    <Check className="size-4" />
+                    <Check className="size-4 shrink-0" />
                     {pkg.period === "annual"
                       ? "Your plan, billed yearly"
                       : "Your plan, billed monthly"}
@@ -292,7 +292,7 @@ function TierColumn({
               return (
                 <Button
                   key={pkg.id}
-                  className="w-full min-w-0 gap-2"
+                  className="h-auto min-h-10 w-full min-w-0 gap-2 whitespace-normal py-2"
                   variant={pkg.period === "annual" ? "default" : "outline"}
                   disabled={busyPackageId !== null}
                   onClick={() => onBuy(pkg)}
@@ -303,7 +303,7 @@ function TierColumn({
                   ) : (
                     <CreditCard className="size-4 shrink-0" />
                   )}
-                  <span className="truncate">{buttonLabel(action, pkg)}</span>
+                  <span className="min-w-0 break-words text-center">{buttonLabel(action, pkg)}</span>
                 </Button>
               );
             })}

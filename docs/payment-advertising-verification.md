@@ -101,3 +101,37 @@ Before a production release, verify with sandbox purchases and physical devices:
 Repository tests mock provider responses. They do not prove that live RevenueCat
 products, AdSense inventory, AdMob consent/configuration, or store credentials
 are operational. No provider dashboard configuration is changed by this patch.
+
+## September 8: ad visibility and payment layout follow-up
+
+The user confirmed payment options are working. Hostinger's environment listing
+now includes `REVENUECAT_SECRET_API_KEY`; earlier reports of it being absent must
+not be treated as the current configuration.
+
+The Android workspace placed its native ad placeholder after the entire page,
+so it was below the fold on ordinary workspaces. It now sits in the document
+flow immediately below the toolbar, as the web placement does. The new
+`audit-native-ads.mjs` checks the built application at 320px and 390px: eligibility
+changes, visible placement messages without scrolling, dismissal, no AdSense
+requests inside the native shell, and no placement on the plans page. It mocks
+account responses and the WebView message bridge, not an actual AdMob creative.
+
+Failed UMP updates without usable cached consent, and failed Mobile Ads startup,
+now retry after 30 seconds while foregrounded or upon returning to the app.
+The consent gate stays closed until Google allows requests. A successful consent
+response that disallows requests does not schedule a retry.
+
+The native paywall now keeps badges inside cards, wraps long prices and purchase
+labels, holds the close control in a separate header, and translates savings and
+renewal text. Web checkout labels wrap instead of truncating the price. Rendered
+native-screen checks passed in English and Turkish at 320px, 390px and 768px,
+including a 160% text-size simulation and unusually long price fixtures. These
+checks use React Native Web with mocked purchase data; they do not complete a
+store purchase or prove physical-device rendering.
+
+The AdMob dashboard inspected on September 8 showed the account approved and
+Casparel Android with 3 requests and 2 impressions over the last seven days.
+It also still showed a "Link to app store" setup task. This is evidence that
+some ads have served, not proof that the installed app currently has inventory
+or that its app-specific readiness review is complete. No live ads were clicked,
+and no AdMob account settings were changed in this follow-up.

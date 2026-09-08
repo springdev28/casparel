@@ -209,7 +209,7 @@ export default function PaywallScreen() {
     const monthlyPrice = monthlyPkg?.product.price ?? 0;
     if (monthlyPrice > 0 && pkg.product.price > 0) {
       const pct = Math.round((1 - pkg.product.price / (monthlyPrice * 12)) * 100);
-      if (pct > 0) return `Best value · Save ${pct}%`;
+      if (pct > 0) return t('Best value · Save {percent}%').replace('{percent}', String(pct));
     }
     return t('Best value');
   }
@@ -301,27 +301,30 @@ export default function PaywallScreen() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      {/* Close */}
-      <Pressable
-        onPress={close}
-        accessibilityRole="button"
-        accessibilityLabel={t('Close subscription plans')}
-        style={[
-          styles.closeBtn,
-          {
-            top: insets.top + 8,
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
-        hitSlop={10}
-      >
-        <Feather name="x" size={20} color={colors.mutedForeground} />
-      </Pressable>
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderColor: colors.border }]}>
+        <Pressable
+          onPress={close}
+          accessibilityRole="button"
+          accessibilityLabel={t('Close subscription plans')}
+          style={[
+            styles.closeBtn,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+          hitSlop={10}
+        >
+          <Feather name="x" size={20} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
 
       <ScrollView
         contentContainerStyle={{
-          paddingTop: Math.max(insets.top, 28) + 64,
+          width: '100%',
+          maxWidth: 680,
+          alignSelf: 'center',
+          paddingTop: 20,
           paddingBottom: insets.bottom + 28,
           paddingHorizontal: 20,
         }}
@@ -481,11 +484,13 @@ export default function PaywallScreen() {
                   loading={busy}
                   disabled={!selectedPkg || selectedIsCurrent}
                 >
-                  {!selectedPkg
-                    ? t('Choose a plan')
-                    : selectedIsCurrent
-                      ? t('Current plan')
-                      : `${ctaVerb} · ${selectedPkg.product.priceString}`}
+                  <Text style={[styles.purchaseLabel, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                    {!selectedPkg
+                      ? t('Choose a plan')
+                      : selectedIsCurrent
+                        ? t('Current plan')
+                        : `${ctaVerb} · ${selectedPkg.product.priceString}`}
+                  </Text>
                 </Button>
               </View>
             </FadeInView>
@@ -558,8 +563,7 @@ export default function PaywallScreen() {
             },
           ]}
         >
-          Subscriptions renew automatically until cancelled. Manage or cancel anytime in your{' '}
-          {Platform.OS === 'ios' ? 'App Store' : 'Google Play'} account settings.{' '}
+          {t('Subscriptions renew automatically until cancelled. Manage or cancel anytime in your {store} account settings.').replace('{store}', Platform.OS === 'ios' ? 'App Store' : 'Google Play')}{' '}
           <Text
             accessibilityRole="link"
             style={styles.link}
@@ -612,10 +616,18 @@ function PackageOption({
           borderColor: selected ? colors.primary : colors.border,
           backgroundColor: selected ? colors.primary + '10' : colors.card,
           borderRadius: colors.radius,
-          borderWidth: selected ? 2 : 1,
+          borderWidth: 2,
         },
       ]}
     >
+      <View style={styles.pkgHeading}>
+        <Text style={[styles.pkgTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+          Casparel {TIER_TITLES[packageTier]}
+        </Text>
+        <View style={[styles.radio, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : 'transparent' }]}>
+          {selected ? <Feather name="check" size={12} color={colors.primaryForeground} /> : null}
+        </View>
+      </View>
       {current || badge ? (
         <View style={[styles.pkgBadge, { backgroundColor: colors.accent, borderRadius: colors.radius }]}>
           <Text
@@ -631,17 +643,9 @@ function PackageOption({
           </Text>
         </View>
       ) : null}
-      <View style={{ flex: 1 }}>
-        <Text
-          style={[
-            styles.pkgTitle,
-            {
-              color: colors.foreground,
-              fontFamily: colors.fontFamily.sansSemiBold,
-            },
-          ]}
-        >
-          Casparel {TIER_TITLES[packageTier]}
+      <View style={styles.pkgBilling}>
+        <Text style={[styles.pkgPrice, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
+          {pkg.product.priceString}
         </Text>
         {period ? (
           <Text
@@ -657,30 +661,14 @@ function PackageOption({
           </Text>
         ) : null}
       </View>
-      <Text style={[styles.pkgPrice, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
-        {pkg.product.priceString}
-      </Text>
-      <View
-        style={[
-          styles.radio,
-          {
-            borderColor: selected ? colors.primary : colors.border,
-            backgroundColor: selected ? colors.primary : 'transparent',
-          },
-        ]}
-      >
-        {selected ? <Feather name="check" size={12} color={colors.primaryForeground} /> : null}
-      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  header: { paddingHorizontal: 16, paddingBottom: 8, alignItems: 'flex-end', borderBottomWidth: StyleSheet.hairlineWidth },
   closeBtn: {
-    position: 'absolute',
-    right: 16,
-    zIndex: 10,
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -726,29 +714,28 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 18,
   },
-  premiumText: { fontSize: 14 },
+  premiumText: { fontSize: 14, flex: 1 },
+  purchaseLabel: { fontSize: 16, flexShrink: 1, textAlign: 'center' },
   loading: { paddingVertical: 32, alignItems: 'center' },
   notice: { borderWidth: 1, borderStyle: 'dashed', padding: 16, marginTop: 18 },
   noticeText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
   pkg: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 10,
     padding: 14,
     position: 'relative',
   },
   pkgBadge: {
-    position: 'absolute',
-    top: -9,
-    right: 12,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    zIndex: 1,
   },
+  pkgHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pkgBilling: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
   pkgBadgeText: { fontSize: 10, letterSpacing: 0.2 },
-  pkgTitle: { fontSize: 15 },
+  pkgTitle: { fontSize: 15, flex: 1 },
   pkgPeriod: { fontSize: 12, marginTop: 2 },
-  pkgPrice: { fontSize: 16 },
+  pkgPrice: { fontSize: 20, flexShrink: 1 },
   radio: {
     width: 22,
     height: 22,

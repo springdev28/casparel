@@ -1424,17 +1424,13 @@ export default function AppShell({ children }: AppShellProps) {
               } as CSSProperties
             }
           >
-            {/* On the website the small display banner sits directly below
-                the app toolbar, where it is visible without interrupting the
-                page. The installed Android app still anchors its native ad to
-                a scrolling placeholder after the page content. */}
-            {!nativeShell ? (
-              <div className="w-full min-w-0 px-3 sm:px-4">
-                <InlineAd />
-              </div>
-            ) : null}
+            {/* Both placements sit below the toolbar in the document flow.
+                Putting Android's placeholder after an entire workspace made
+                its creative invisible until the reader reached the bottom. */}
+            <div className="w-full min-w-0 px-3 sm:px-4">
+              <InlineAd />
+            </div>
             {children}
-            {nativeShell ? <InlineAd /> : null}
           </div>
         </main>
       </div>
