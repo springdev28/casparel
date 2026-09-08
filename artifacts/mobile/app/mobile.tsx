@@ -93,6 +93,8 @@ export default function MobileWebAppScreen() {
           window.localStorage.setItem('schoolar_token', ${serializedToken});
           window.localStorage.setItem('schoolar_language', ${serializedLanguage});
           window.localStorage.setItem('casparel_native_shell', 'true');
+          window.casparelNativeAdReadiness = true;
+          window.dispatchEvent(new Event('casparel-native-ad-support'));
           window.localStorage.setItem('casparel_ad_sound_muted', String(${serializedSoundMuted}));
           window.localStorage.setItem('casparel_ads_disabled', String(${serializedAdsDisabled}));
           window.localStorage.setItem('casparel_can_disable_ads', String(${serializedCanDisableAds}));
@@ -261,6 +263,14 @@ export default function MobileWebAppScreen() {
     );
   }, []);
 
+  const nativePlacementId = nativeAdPlacement?.id;
+  const updateNativeAdAvailability = useCallback((ready: boolean) => {
+    if (!nativePlacementId) return;
+    webView.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('casparel-native-ad-ready', { detail: ${JSON.stringify({ id: nativePlacementId, ready })} })); true;`,
+    );
+  }, [nativePlacementId]);
+
   if (!token) return null;
 
   return (
@@ -307,6 +317,9 @@ export default function MobileWebAppScreen() {
           )}
           onNavigationStateChange={syncNavigation}
           onLoadStart={(event) => {
+            // A new document needs a fresh readiness handshake, including a
+            // reload of the same route after a deploy or connection failure.
+            setNativeAdPlacement(null);
             const destination = classifyMobileWebUrl(event.nativeEvent.url, apiOrigin);
             if (destination.kind === 'internal') dispatchLoad({ type: 'loading', url: destination.url });
           }}
@@ -360,6 +373,7 @@ export default function MobileWebAppScreen() {
             <SponsoredLearningResourceCard
               key={nativeAdPlacement.id}
               placementId={nativeAdPlacement.id}
+              onAvailabilityChange={updateNativeAdAvailability}
               onDismiss={() => dismissNativeAd(nativeAdPlacement.id)}
             />
           </View>

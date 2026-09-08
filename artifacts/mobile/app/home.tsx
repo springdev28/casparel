@@ -89,7 +89,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   page: { paddingHorizontal: 22, gap: 24, width: '100%', maxWidth: 680, alignSelf: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandName: { fontSize: 23 },
   headerAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },

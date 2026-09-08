@@ -199,6 +199,10 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-translation.mjs
 
+      - name: Audit Android ad placement
+        working-directory: artifacts/app
+        run: node scripts/audit-native-ads.mjs
+
       # The other half of the same bridge. It rewrites any English string it
       # matches, including text that came out of the database -- a flashcard
       # deck titled "Answer" whose cards read "Share" and "Close" came back to

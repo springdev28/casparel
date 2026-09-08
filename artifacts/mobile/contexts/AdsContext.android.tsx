@@ -13,6 +13,8 @@ import React, {
   useState,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppState } from "react-native";
+import { retryAdStartupWhenActive } from "@/utils/ad-startup-retry";
 import { adPreferencesQueryKey, adPreferencesQueryOptions } from "@/utils/ad-preferences-query";
 import type { AdsConsentInfo } from "react-native-google-mobile-ads";
 import { getGetMyUsageQueryKey, useGetMyUsage } from "@workspace/api-client-react";
@@ -110,6 +112,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: isAuthenticated, queryKey: getGetMyUsageQueryKey() },
   });
   const [ready, setReady] = useState(false);
+  const [startupAttempt, setStartupAttempt] = useState(0);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [preferencesUserId, setPreferencesUserId] = useState<number | null>(null);
   const [soundMuted, setSoundMutedState] = useState(false);
@@ -283,6 +286,10 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
+    let stopRetry: (() => void) | undefined;
+    const retryStartup = () => {
+      if (!cancelled) stopRetry = retryAdStartupWhenActive(AppState, () => setStartupAttempt(value => value + 1));
+    };
     setReady(false);
     setConsentInfo(null);
 
@@ -297,6 +304,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       }
       setAdsModule(ads);
       let info: AdsConsentInfo | null = null;
+      let consentUpdateFailed = false;
       try {
         // UMP refreshes this on every app launch and shows any required form.
         // Do not cache a separate answer: Google's message can expire/change.
@@ -304,6 +312,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
           tagForUnderAgeOfConsent: true,
         });
       } catch {
+        consentUpdateFailed = true;
         // Google's documented fallback is the last UMP state. With no cached
         // state we fail closed, which means an ad outage cannot break Casparel.
         try {
@@ -323,6 +332,9 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       if (!info?.canRequestAds) {
         logAdDiagnostic('request-blocked', { reason: 'consent' });
         setReady(true);
+        // A failed UMP network update is an outage, not a consent decision.
+        // Keep the gate closed and recover without requiring an app restart.
+        if (consentUpdateFailed) retryStartup();
         return;
       }
 
@@ -335,6 +347,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
         // closed when the native SDK cannot initialize.
         logAdDiagnostic('sdk-init-failed');
         if (!cancelled) setConsentInfo({ ...info, canRequestAds: false });
+        retryStartup();
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -342,8 +355,9 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      stopRetry?.();
     };
-  }, [authLoading, isAuthenticated, needsOnboarding, onboardingReady]);
+  }, [authLoading, isAuthenticated, needsOnboarding, onboardingReady, startupAttempt]);
 
   const showPrivacyOptions = useCallback(async (): Promise<boolean> => {
     const ads = adsModule ?? (await loadGoogleMobileAds());

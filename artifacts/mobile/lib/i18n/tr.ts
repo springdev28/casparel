@@ -129,6 +129,8 @@ const TR: Record<string, string> = {
   "Be the first to review this resource": "Bu kaynağı ilk değerlendiren sen ol",
   "Beginner": "Başlangıç",
   "Best value": "En avantajlı",
+  "Best value · Save {percent}%": "En avantajlı · %{percent} tasarruf",
+  "Subscriptions renew automatically until cancelled. Manage or cancel anytime in your {store} account settings.": "Abonelikler iptal edilene kadar otomatik olarak yenilenir. {store} hesap ayarlarından istediğin zaman yönetebilir veya iptal edebilirsin.",
   "Billed monthly": "Aylık faturalanır",
   "Billed yearly": "Yıllık faturalanır",
   "Bio": "Biyografi",

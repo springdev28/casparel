@@ -43,9 +43,11 @@ function adUnitForThisBuild(ads: GoogleMobileAdsModule): string | null {
 export function SponsoredLearningResourceCard({
   placementId = 'default',
   onDismiss,
+  onAvailabilityChange,
 }: {
   placementId?: string;
   onDismiss?: () => void;
+  onAvailabilityChange?: (ready: boolean) => void;
 }) {
   const { t } = useLanguage();
   const colors = useColors();
@@ -65,6 +67,11 @@ export function SponsoredLearningResourceCard({
     nativeAd: NativeAd;
     ads: GoogleMobileAdsModule;
   } | null>(null);
+
+  useEffect(() => {
+    onAvailabilityChange?.(creative !== null && !dismissed && canRequestAds);
+    return () => onAvailabilityChange?.(false);
+  }, [creative, dismissed, canRequestAds, onAvailabilityChange]);
 
   useEffect(() => {
     logAdDiagnostic('placement-mounted', { placement: 'inline' });
@@ -388,6 +395,7 @@ const styles = StyleSheet.create({
   },
   labelRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   sponsoredLabel: {
+    flex: 1,
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.7,
@@ -399,7 +407,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  soundButton: { marginLeft: "auto", padding: 3 },
+  soundButton: { padding: 3 },
   dismissButton: { padding: 3 },
   headingRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   icon: { width: 36, height: 36, borderRadius: 8 },
