@@ -151,8 +151,11 @@ export function InlineAd({ className }: { className?: string }) {
     const placementId = `inline:${location}`;
     let frame = 0;
     const publish = () => {
-      cancelAnimationFrame(frame);
+      // Coalesce mutations without postponing an already scheduled update.
+      // Animated styles can change every frame while an ad is loading.
+      if (frame) return;
       frame = requestAnimationFrame(() => {
+        frame = 0;
         const element = nativeSlot.current;
         if (!element) return;
         const rect = element.getBoundingClientRect();
@@ -162,8 +165,19 @@ export function InlineAd({ className }: { className?: string }) {
         const safeTop = Math.max(toolbar?.bottom ?? NATIVE_AD_SAFE_TOP, header?.bottom ?? 0);
         const clipTop = Math.max(0, Math.min(nativeHeight, safeTop - rect.top));
         const clipBottom = Math.max(0, Math.min(nativeHeight - clipTop, rect.top + nativeHeight - window.innerHeight));
-        const blocked = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper]'))
-          .some(node => node instanceof HTMLElement && node.getBoundingClientRect().height > 0 && getComputedStyle(node).visibility !== 'hidden');
+        const blocked = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'))
+          .some(node => {
+            if (!(node instanceof HTMLElement)) return false;
+            const bounds = node.getBoundingClientRect();
+            if (bounds.width <= 0 || bounds.height <= 0 || bounds.bottom <= 0 || bounds.top >= window.innerHeight || bounds.right <= 0 || bounds.left >= window.innerWidth) return false;
+            // A popup may stay mounted offscreen or under a transparent parent
+            // while its library measures it. Neither covers the native ad.
+            for (let parent: HTMLElement | null = node; parent; parent = parent.parentElement) {
+              const style = getComputedStyle(parent);
+              if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') return false;
+            }
+            return true;
+          });
         const visible = nativeSlotReady && !document.hidden && !blocked && clipTop + clipBottom < nativeHeight && (nativeClippingSupported || clipTop + clipBottom === 0);
         postToNative({
           type: "native-ad-placement",

@@ -36,7 +36,7 @@ const mocks = {
 };
 try {
   await build({ stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {Context} from '@/contexts/AdsContext';import {SponsoredLearningResourceCard as Card} from '${mobile}/components/SponsoredLearningResourceCard.android.tsx';
-    function App(){const [soundMuted,setSoundMuted]=React.useState(false);const [visible,setVisible]=React.useState(true);window.setAdVisible=setVisible;return <Context.Provider value={{ready:true,canRequestAds:true,soundMuted,setSoundMuted}}><button id="settings-mute" onClick={()=>setSoundMuted(true)}>Mute in Settings</button><output id="saved-mute">{String(soundMuted)}</output><Card visible={visible}/></Context.Provider>};createRoot(document.getElementById('root')).render(<App/>);`, loader: 'tsx', resolveDir: mobile }, bundle: true, outfile: join(temporary, 'bundle.js'), platform: 'browser', format: 'iife', define: {'process.env.NODE_ENV':'"production"', '__DEV__':'true', 'process.env.EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_NATIVE_AD_UNIT_ID':'"test-unit"'}, nodePaths: [join(mobile,'node_modules')], alias: {'react-native': join(mobile,'node_modules/react-native-web')}, plugins: [{ name: 'test-ad-sdk', setup(builder) {
+    function App(){const [soundMuted,setSoundMuted]=React.useState(false);const [visible,setVisible]=React.useState(true);window.setAdVisible=setVisible;React.useEffect(()=>{window.committedAdVisible=visible},[visible]);return <Context.Provider value={{ready:true,canRequestAds:true,soundMuted,setSoundMuted}}><button id="settings-mute" onClick={()=>setSoundMuted(true)}>Mute in Settings</button><output id="saved-mute">{String(soundMuted)}</output><Card visible={visible}/></Context.Provider>};createRoot(document.getElementById('root')).render(<App/>);`, loader: 'tsx', resolveDir: mobile }, bundle: true, outfile: join(temporary, 'bundle.js'), platform: 'browser', format: 'iife', define: {'process.env.NODE_ENV':'"production"', '__DEV__':'true', 'process.env.EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_NATIVE_AD_UNIT_ID':'"test-unit"'}, nodePaths: [join(mobile,'node_modules')], alias: {'react-native': join(mobile,'node_modules/react-native-web')}, plugins: [{ name: 'test-ad-sdk', setup(builder) {
     builder.onResolve({filter:/.*/}, args=>mocks[args.path] ? {path:args.path,namespace:'mock'} : args.path==='@/utils/ad-rotation' ? {path:join(mobile,'utils/ad-rotation.ts')} : undefined);
     builder.onLoad({filter:/.*/,namespace:'mock'}, args=>({contents:mocks[args.path],loader:'js',resolveDir:mobile}));
   }}] });
@@ -70,6 +70,8 @@ try {
       await page.locator('#settings-mute').click();
       await page.waitForFunction(()=>window.testAds[4].destroyed);
       await page.evaluate(()=>window.setAdVisible(false));
+      // State setters return before React commits the visibility prop/effects.
+      await page.waitForFunction(()=>window.committedAdVisible===false);
       const current=await page.locator('[data-testid="sdk-ad-view"]').getAttribute('data-response');
       await page.evaluate(id=>window.testAds[Number(id)-1].emit('ended'),current);
       assert.equal(await page.locator('[data-testid="sdk-ad-view"]').getAttribute('data-response'),current);

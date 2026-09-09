@@ -27,6 +27,7 @@ try {
       (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).ReactNativeWebView = { postMessage: value => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.push(JSON.parse(value)) };
     }, readinessSupported);
     const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
     const errors = [];
     const adRequests = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -36,6 +37,22 @@ try {
     });
     await page.goto(`http://127.0.0.1:${port}/dashboard`, { waitUntil: 'networkidle' });
     assert.equal(await page.getByTestId('native-inline-ad-placeholder').count(), 0);
+    // A hidden/offscreen popup must not suppress the native creative. Keep a
+    // style animation running as well: placement updates must not starve.
+    await page.evaluate(() => {
+      const popup = document.createElement('div');
+      popup.id = 'ad-audit-offscreen-popup';
+      popup.setAttribute('data-radix-popper-content-wrapper', '');
+      popup.style.cssText = 'position:fixed;top:-10000px;width:100px;height:100px';
+      document.body.append(popup);
+      let count = 0;
+      const animate = () => {
+        if (!popup.isConnected) return;
+        popup.style.opacity = String(0.5 + (count++ % 10) / 20);
+        requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    });
     await page.evaluate(() => {
       localStorage.setItem('casparel_native_ads_eligible', 'true');
       window.dispatchEvent(new Event('casparel-native-ads-eligibility-change'));
@@ -51,6 +68,27 @@ try {
     const placement = await page.evaluate(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1));
     assert.ok(placement.top >= 72 && placement.top + placement.height <= height, 'ad must be visible below the toolbar without scrolling to the bottom');
     assert.equal(await page.getByTestId('native-inline-ad-placeholder').count(), 1);
+    // Mounted but transparent menus and tooltip accessibility text also do
+    // not cover the ad. Real navigation below still must hide it.
+    for (const hiddenStyle of ['opacity:0', 'visibility:hidden', 'display:none']) {
+      await page.evaluate(style => {
+        const popup = document.createElement('div');
+        popup.id = 'ad-audit-hidden-menu';
+        popup.setAttribute('role', 'menu');
+        popup.style.cssText = `position:fixed;top:100px;width:100px;height:100px;${style}`;
+        document.body.append(popup);
+      }, hiddenStyle);
+      await page.waitForTimeout(100);
+      assert.equal(await page.evaluate(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.visible), true, `${hiddenStyle} menu must not hide the ad`);
+      await page.evaluate(() => document.getElementById('ad-audit-hidden-menu').remove());
+    }
+    await page.evaluate(() => {
+      const tooltip = document.createElement('span');
+      tooltip.setAttribute('role', 'tooltip');
+      tooltip.className = 'sr-only';
+      tooltip.textContent = 'Navigation hint';
+      document.body.append(tooltip);
+    });
     if (readinessSupported) {
     // A loaded native card reports its real height; even a large creative
     // must remain partially visible on the smallest phone.
@@ -78,7 +116,7 @@ try {
     await page.goto(`http://127.0.0.1:${port}/plans`, { waitUntil: 'networkidle' });
     assert.equal(await page.getByTestId('native-inline-ad-placeholder').count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS native ad placement ${width}px (readiness bridge ${readinessSupported}): eligibility, measured height, partial scrolling, sidebar occlusion, return to view, dismissal compatibility, excluded payment route`);
+    console.log(`PASS native ad placement ${width}px (readiness bridge ${readinessSupported}): eligibility, animated/offscreen/hidden overlays, measured height, partial scrolling, sidebar occlusion, return to view, dismissal compatibility, excluded payment route`);
     await context.close();
   }
 } finally {
