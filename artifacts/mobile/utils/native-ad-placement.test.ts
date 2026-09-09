@@ -23,6 +23,14 @@ describe('parseNativeAdPlacement', () => {
     });
   });
 
+  it('accepts partial clipping without moving the creative or trusting unbounded clips', () => {
+    expect(parseNativeAdPlacement({ ...placement, top: 40, height: 420, clipTop: 60, clipBottom: 0 }))
+      .toMatchObject({ top: 40, height: 420, clipTop: 60, clipBottom: 0 });
+    expect(parseNativeAdPlacement({ ...placement, clipTop: -1 })).toBeNull();
+    expect(parseNativeAdPlacement({ ...placement, clipBottom: Infinity })).toBeNull();
+    expect(parseNativeAdPlacement({ ...placement, clipTop: 250, clipBottom: 60 })).toBeNull();
+  });
+
   it('rejects malformed and screen-covering messages', () => {
     expect(
       parseNativeAdPlacement({ ...placement, type: 'open-url' }),

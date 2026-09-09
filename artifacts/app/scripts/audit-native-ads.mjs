@@ -6,8 +6,8 @@ import { installSession } from './audit-fixtures.mjs';
 import { launchOptions } from './chromium.mjs';
 import { serveBuild } from './serve-build.mjs';
 
-/** @typedef {{ type?: string, id?: string, top?: number, height?: number, visible?: boolean }} AdMessage */
-/** @typedef {Window & { casparelNativeAdReadiness: boolean, nativeMessages: AdMessage[], ReactNativeWebView: { postMessage: (value: string) => void } }} HarnessWindow */
+/** @typedef {{ type?: string, id?: string, top?: number, height?: number, clipTop?: number, clipBottom?: number, visible?: boolean }} AdMessage */
+/** @typedef {Window & { casparelNativeAdReadiness: boolean, casparelNativeAdClipping: boolean, nativeMessages: AdMessage[], ReactNativeWebView: { postMessage: (value: string) => void } }} HarnessWindow */
 /** @type {Array<[number, number, boolean]>} */
 const cases = [[320, 568, true], [390, 844, true], [390, 844, false]];
 
@@ -20,6 +20,7 @@ try {
     await installSession(context, { role: 'student' });
     await context.addInitScript(readinessSupported => {
       (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).casparelNativeAdReadiness = readinessSupported;
+      (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).casparelNativeAdClipping = readinessSupported;
       localStorage.setItem('casparel_native_shell', 'true');
       localStorage.setItem('casparel_native_ads_eligible', 'false');
       (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages = [];
@@ -50,6 +51,26 @@ try {
     const placement = await page.evaluate(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1));
     assert.ok(placement.top >= 72 && placement.top + placement.height <= height, 'ad must be visible below the toolbar without scrolling to the bottom');
     assert.equal(await page.getByTestId('native-inline-ad-placeholder').count(), 1);
+    if (readinessSupported) {
+    // A loaded native card reports its real height; even a large creative
+    // must remain partially visible on the smallest phone.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('casparel-native-ad-ready', { detail: { id: 'inline:/dashboard', ready: true, height: 420 } })));
+    await page.waitForFunction(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.height === 420);
+    await page.evaluate(() => document.querySelector('main').scrollBy(0, 30));
+    await page.waitForFunction(() => {
+      const latest = (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1);
+      return latest?.visible && latest.clipTop > 0;
+    });
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.waitForFunction(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.visible === false);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.visible === true);
+    await page.evaluate(() => document.querySelector('main').scrollBy(0, 600));
+    await page.waitForFunction(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.visible === false);
+    await page.evaluate(() => document.querySelector('main').scrollTo(0, 0));
+    await page.waitForFunction(() => (/** @type {HarnessWindow} */ (/** @type {unknown} */ (window))).nativeMessages.filter(message => message.type === 'native-ad-placement').at(-1)?.visible === true);
+
+    }
     assert.deepEqual(adRequests, [], 'the native slot must never request a second AdSense creative');
     await page.evaluate(id => window.dispatchEvent(new CustomEvent('casparel-native-ad-dismiss', { detail: id })), placement.id);
     await page.getByTestId('native-inline-ad-placeholder').waitFor({ state: 'detached' });
@@ -57,7 +78,7 @@ try {
     await page.goto(`http://127.0.0.1:${port}/plans`, { waitUntil: 'networkidle' });
     assert.equal(await page.getByTestId('native-inline-ad-placeholder').count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS native ad placement ${width}px (readiness bridge ${readinessSupported}): eligibility, visible first-screen placement, dismissal, excluded payment route`);
+    console.log(`PASS native ad placement ${width}px (readiness bridge ${readinessSupported}): eligibility, measured height, partial scrolling, sidebar occlusion, return to view, dismissal compatibility, excluded payment route`);
     await context.close();
   }
 } finally {

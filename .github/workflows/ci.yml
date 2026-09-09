@@ -203,6 +203,11 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-native-ads.mjs
 
+      - name: Audit ad controls and interaction feedback
+        run: |
+          node artifacts/mobile/scripts/audit-ad-controls.mjs
+          node artifacts/app/scripts/audit-interaction-feedback.mjs
+
       # The other half of the same bridge. It rewrites any English string it
       # matches, including text that came out of the database -- a flashcard
       # deck titled "Answer" whose cards read "Share" and "Close" came back to

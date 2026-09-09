@@ -137,3 +137,44 @@ It also still showed a "Link to app store" setup task. This is evidence that
 some ads have served, not proof that the installed app currently has inventory
 or that its app-specific readiness review is complete. No live ads were clicked,
 and no AdMob account settings were changed in this follow-up.
+
+## September 8: ad controls, scrolling and feedback
+
+The reported controls were inside `NativeAdView`, the overlay only appeared when
+its entire placeholder fit onscreen, and DOM z-index could not place a native
+surface behind the web sidebar. The placement bridge now communicates clipping,
+measured creative height and visibility beneath dialogs/navigation. Vertical drags
+starting over the ad are forwarded to the workspace scroller. Older installed
+builds retain the old placement contract until they receive the native update.
+
+The app controls sit outside the SDK touch surface with 44-point targets. One
+native creative is prefetched for skip/video-end replacement, with consent,
+background visibility, request timeouts, stale responses and disposal accounted
+for. An immediate replacement still depends on available inventory. Native
+video's own mute callbacks persist the preference. Changing the app's ad-sound
+preference replaces the current creative using `startVideoMuted`: Google's
+[VideoController](https://developers.google.com/admob/android/reference/com/google/android/gms/ads/VideoController)
+only supports direct custom mute control for custom-controls-enabled inventory.
+The SDK's own video controls remain available; Casparel does not pretend a global
+`MobileAds.setAppMuted` call mutes an already-playing native video. Account writes
+are serialized and SecureStore keys use supported characters.
+
+Web replacement requires the explicit close/next button. AdSense automatic
+refresh is excluded under its
+[placement policy](https://support.google.com/adsense/answer/1346295?hl=en-GB).
+Its video audio remains controlled by the ad player; Settings explains this
+instead of offering an ineffective web sound switch.
+
+Ordinary workspace controls get a 180ms pop/glow and quiet tones. Audio is unlocked
+inside the first input gesture while sound recipes remain lazy. Native design
+system buttons get a matching fast press pulse, haptics and original short PCM
+cues via Expo Audio. Sound-effects preferences sync through the WebView bridge,
+remain independent of ad audio, and respect reduced motion and the native silent
+mode. Recording/microphone permissions remain disabled.
+
+Verification includes `audit-native-ads.mjs` at 320/390px, the actual RN card in
+`artifacts/mobile/scripts/audit-ad-controls.mjs` with a simulated SDK, and
+`audit-interaction-feedback.mjs` against the built app. These check real rendered
+controls and events, but do not prove physical Android SDK/video behavior. No
+live ads are clicked. Workspace typechecks, API/mobile tests, both native bundles,
+API/web builds, release config and the existing feedback audit are also required.

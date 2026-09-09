@@ -5,7 +5,7 @@
  * revenuecat-ads forwards lifecycle/revenue callbacks for unified reporting.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import type { NativeAd } from "react-native-google-mobile-ads";
 import { useColors } from "@workspace/edu-ds/hooks/use-colors";
@@ -22,6 +22,7 @@ import {
   loadGoogleMobileAds,
   type GoogleMobileAdsModule,
 } from "@/utils/google-mobile-ads";
+import { AdRotation } from "@/utils/ad-rotation";
 import { ADMOB_NO_FILL_CODE, logAdDiagnostic } from "@/utils/ad-diagnostics";
 
 const productionAdUnitId =
@@ -42,12 +43,14 @@ function adUnitForThisBuild(ads: GoogleMobileAdsModule): string | null {
 
 export function SponsoredLearningResourceCard({
   placementId = 'default',
-  onDismiss,
+  visible = true,
   onAvailabilityChange,
+  onHeightChange,
 }: {
   placementId?: string;
-  onDismiss?: () => void;
+  visible?: boolean;
   onAvailabilityChange?: (ready: boolean) => void;
+  onHeightChange?: (height: number) => void;
 }) {
   const { t } = useLanguage();
   const colors = useColors();
@@ -61,145 +64,88 @@ export function SponsoredLearningResourceCard({
   setSoundMutedRef.current = setSoundMuted;
   const soundMutedRef = useRef(soundMuted);
   soundMutedRef.current = soundMuted;
-  const [requestNonce, setRequestNonce] = useState(0);
-  const [dismissed, setDismissed] = useState(false);
-  const [creative, setCreative] = useState<{
-    nativeAd: NativeAd;
-    ads: GoogleMobileAdsModule;
-  } | null>(null);
+  type Creative = { nativeAd: NativeAd; ads: GoogleMobileAdsModule; muted: boolean; destroy(): void };
+  const [creative, setCreative] = useState<Creative | null>(null);
+  const rotation = useRef<AdRotation<Creative> | null>(null);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const active = visible && foreground;
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   useEffect(() => {
-    onAvailabilityChange?.(creative !== null && !dismissed && canRequestAds);
-    return () => onAvailabilityChange?.(false);
-  }, [creative, dismissed, canRequestAds, onAvailabilityChange]);
+    const listener = AppState.addEventListener('change', state => setForeground(state === 'active'));
+    return () => listener.remove();
+  }, []);
+  useEffect(() => { rotation.current?.setVisible(active); }, [active]);
+  useEffect(() => { rotation.current?.releaseRetired(); }, [creative]);
+  useEffect(() => {
+    onAvailabilityChange?.(creative !== null && canRequestAds);
+  }, [creative, canRequestAds, onAvailabilityChange]);
+  useEffect(() => () => onAvailabilityChange?.(false), [onAvailabilityChange]);
 
   useEffect(() => {
+    if (!adsReady || !canRequestAds) return;
     logAdDiagnostic('placement-mounted', { placement: 'inline' });
-  }, [placementId]);
-
-  function dismissPlacement() {
-    logAdDiagnostic('placement-dismissed', { placement: 'inline' });
-    setDismissed(true);
-    onDismiss?.();
-  }
+    const queue = new AdRotation<Creative>(async () => {
+      const ads = await loadGoogleMobileAds();
+      if (!ads) throw new Error('AD_SDK_UNAVAILABLE');
+      const unit = adUnitForThisBuild(ads);
+      if (!unit) throw new Error('AD_UNIT_UNAVAILABLE');
+      const muted = soundMutedRef.current;
+      const ad = await ads.NativeAd.createForAdRequest(unit, {
+        requestNonPersonalizedAdsOnly: true,
+        startVideoMuted: muted,
+        aspectRatio: ads.NativeMediaAspectRatio.LANDSCAPE,
+        keywords: ['education', 'learning', 'study', 'school', 'books', 'courses'],
+      });
+      const loaded: Creative = { nativeAd: ad, ads, muted, destroy: () => ad.destroy() };
+      ad.addAdEventListener(ads.NativeAdEventType.IMPRESSION, () => {
+        void trackSponsoredAdDisplayed(unit, ad.responseId);
+      });
+      ad.addAdEventListener(ads.NativeAdEventType.CLICKED, () => {
+        void trackSponsoredAdOpened(unit, ad.responseId);
+      });
+      ad.addAdEventListener(ads.NativeAdEventType.PAID, payload => {
+        const paid = payload as NativePaidEvent;
+        const currency = paid.currency ?? paid.currencyCode;
+        if (currency) void trackSponsoredAdRevenue(unit, ad.responseId, { value: paid.value, currency, precision: paid.precision });
+      });
+      let played = false;
+      ad.addAdEventListener(ads.NativeAdEventType.VIDEO_PLAYED, () => { played = true; });
+      const rememberMute = (muted: boolean) => {
+        // Only the displayed video's controls may update Settings; startup
+        // callbacks from a prefetched creative must not overwrite a choice.
+        if (queue.current !== loaded || !played || loaded.muted === muted) return;
+        loaded.muted = muted;
+        soundMutedRef.current = muted;
+        queue.discardPreload();
+        void setSoundMutedRef.current(muted);
+      };
+      ad.addAdEventListener(ads.NativeAdEventType.VIDEO_MUTED, () => rememberMute(true));
+      ad.addAdEventListener(ads.NativeAdEventType.VIDEO_UNMUTED, () => rememberMute(false));
+      ad.addAdEventListener(ads.NativeAdEventType.VIDEO_ENDED, () => {
+        if (queue.current === loaded) queue.advance();
+      });
+      void trackSponsoredAdLoaded(unit, ad.responseId);
+      return loaded;
+    }, setCreative, error => {
+      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+      logAdDiagnostic(code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed');
+      if (productionAdUnitId) void trackSponsoredAdFailed(productionAdUnitId, code);
+    });
+    rotation.current = queue;
+    queue.setVisible(activeRef.current);
+    queue.start();
+    return () => { rotation.current = null; queue.stop(); setCreative(null); };
+  }, [adsReady, canRequestAds, placementId]);
 
   useEffect(() => {
-    if (!adsReady || !canRequestAds || dismissed) return;
+    // Native video does not support MobileAds.setAppMuted. Stop the current
+    // creative and request its replacement using Google's startVideoMuted.
+    if (creative && creative.muted !== soundMuted) rotation.current?.resetSound();
+  }, [soundMuted, creative]);
 
-    let cancelled = false;
-    let loadedAd: NativeAd | null = null;
-    let requestedAdUnitId: string | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    logAdDiagnostic('request-permitted');
-    void loadGoogleMobileAds()
-      .then(async (ads) => {
-        if (!ads || cancelled) return null;
-        const adUnitId = adUnitForThisBuild(ads);
-        requestedAdUnitId = adUnitId;
-        logAdDiagnostic('production-unit-selected', {
-          production: !__DEV__,
-          configured: Boolean(adUnitId),
-        });
-        if (!adUnitId) {
-          logAdDiagnostic('unit-missing', { dev: __DEV__ });
-          return null;
-        }
-        requestedAdUnitId = adUnitId;
-        logAdDiagnostic('ad-requested', { unit: adUnitId });
-
-        const ad = await ads.NativeAd.createForAdRequest(adUnitId, {
-          // UMP/TFUA is the privacy gate; this request flag independently
-          // ensures the creative is not behaviorally personalized.
-          requestNonPersonalizedAdsOnly: true,
-          startVideoMuted: soundMutedRef.current,
-          aspectRatio: ads.NativeMediaAspectRatio.LANDSCAPE,
-          keywords: [
-            "education",
-            "learning",
-            "study",
-            "school",
-            "books",
-            "courses",
-          ],
-        });
-
-        if (cancelled) {
-          ad.destroy();
-          return null;
-        }
-
-        loadedAd = ad;
-
-        // Register callbacks before React paints the NativeAdView so a very
-        // fast first impression cannot outrun RevenueCat tracking.
-        ad.addAdEventListener(ads.NativeAdEventType.IMPRESSION, () => {
-          logAdDiagnostic('ad-displayed');
-          void trackSponsoredAdDisplayed(adUnitId, ad.responseId);
-        });
-        ad.addAdEventListener(ads.NativeAdEventType.CLICKED, () => {
-          void trackSponsoredAdOpened(adUnitId, ad.responseId);
-        });
-        ad.addAdEventListener(ads.NativeAdEventType.PAID, (payload) => {
-          const paid = payload as NativePaidEvent;
-          const currency = paid.currency ?? paid.currencyCode;
-          if (!currency) return;
-          void trackSponsoredAdRevenue(adUnitId, ad.responseId, {
-            value: paid.value,
-            currency,
-            precision: paid.precision,
-          });
-        });
-        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_MUTED, () => {
-          void setSoundMutedRef.current(true);
-        });
-        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_UNMUTED, () => {
-          void setSoundMutedRef.current(false);
-        });
-
-
-        logAdDiagnostic('ad-loaded', { unit: adUnitId, response: ad.responseId });
-        void trackSponsoredAdLoaded(adUnitId, ad.responseId);
-        setCreative({ nativeAd: ad, ads });
-        return ad;
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const code =
-          typeof error === "object" && error !== null && "code" in error
-            ? (error as { code?: unknown }).code
-            : undefined;
-        logAdDiagnostic(
-          code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed',
-          {
-            requested: requestedAdUnitId !== null,
-            category: code === ADMOB_NO_FILL_CODE
-              ? 'no-fill'
-              : 'request-error',
-          },
-        );
-        if (requestedAdUnitId) {
-          void trackSponsoredAdFailed(requestedAdUnitId, code);
-        }
-        // Hide unavailable inventory and retry after a delay; clear on unmount.
-        retryTimer = setTimeout(() => {
-          if (!cancelled) setRequestNonce((value) => value + 1);
-        }, 30_000);
-      });
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      loadedAd?.destroy();
-      setCreative(null);
-    };
-  }, [adsReady, canRequestAds, dismissed, requestNonce]);
-
-  if (!adsReady || !canRequestAds || dismissed) {
-    return null;
-  }
-
-  if (!creative) return null;
+  if (!adsReady || !canRequestAds || !creative) return null;
 
   const { nativeAd, ads } = creative;
   const NativeAdView = ads.NativeAdView;
@@ -208,8 +154,34 @@ export function SponsoredLearningResourceCard({
   const NativeAssetType = ads.NativeAssetType;
 
   return (
-    <View style={styles.wrapper}>
-      <NativeAdView nativeAd={nativeAd}>
+    <View style={styles.wrapper} onLayout={event => onHeightChange?.(Math.ceil(event.nativeEvent.layout.height + 10))}>
+      <View style={styles.controls}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            soundMuted ? t("Turn ad sound on") : t("Mute ads")
+          }
+          hitSlop={8}
+          onPress={() => void setSoundMuted(!soundMuted)}
+          style={styles.soundButton}
+        >
+          <Feather
+            name={soundMuted ? "volume-x" : "volume-2"}
+            size={16}
+            color={colors.foreground}
+          />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("Close this ad and show the next")}
+          hitSlop={8}
+          onPress={() => rotation.current?.advance()}
+          style={styles.dismissButton}
+        >
+          <Feather name="x" size={17} color={colors.foreground} />
+        </Pressable>
+      </View>
+      <NativeAdView key={nativeAd.responseId} nativeAd={nativeAd}>
         <View
           style={[
             styles.card,
@@ -247,30 +219,6 @@ export function SponsoredLearningResourceCard({
             >
               {t("AD")}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                soundMuted ? t("Turn ad sound on") : t("Mute ads")
-              }
-              hitSlop={8}
-              onPress={() => void setSoundMuted(!soundMuted)}
-              style={styles.soundButton}
-            >
-              <Feather
-                name={soundMuted ? "volume-x" : "volume-2"}
-                size={16}
-                color={colors.foreground}
-              />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("Dismiss advertisement")}
-              hitSlop={8}
-              onPress={dismissPlacement}
-              style={styles.dismissButton}
-            >
-              <Feather name="x" size={17} color={colors.foreground} />
-            </Pressable>
           </View>
 
           <View style={styles.headingRow}>
@@ -320,7 +268,7 @@ export function SponsoredLearningResourceCard({
 
           {/* NativeMediaView, unlike a normal Image, lets Google register and
               control the ad's image/video asset under the native-ad policy. */}
-          <NativeMediaView resizeMode="cover" style={styles.media} />
+          <NativeMediaView resizeMode="contain" style={styles.media} />
 
           {nativeAd.body ? (
             <NativeAsset assetType={NativeAssetType.BODY}>
@@ -375,17 +323,6 @@ export function SponsoredLearningResourceCard({
 
 const styles = StyleSheet.create({
   wrapper: { marginVertical: 5, gap: 3 },
-  loadingCard: {
-    minHeight: 48,
-    marginVertical: 5,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  loadingLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7 },
   card: {
     borderWidth: 1,
     padding: 10,
@@ -407,14 +344,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  soundButton: { padding: 3 },
-  dismissButton: { padding: 3 },
+  controls: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  soundButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  dismissButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headingRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   icon: { width: 36, height: 36, borderRadius: 8 },
   headingCopy: { flex: 1, gap: 2 },
   headline: { fontSize: 14, lineHeight: 18 },
   advertiser: { fontSize: 11 },
-  media: { width: "100%", height: 96, borderRadius: 7 },
+  media: { width: "100%", height: 120, borderRadius: 7 },
   body: { fontSize: 11, lineHeight: 15 },
   cta: {
     alignSelf: "flex-start",

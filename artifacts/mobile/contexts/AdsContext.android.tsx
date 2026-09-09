@@ -10,6 +10,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -160,18 +161,22 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     });
   }, [adsDisabled, canDisableAds]);
 
+  const preferenceWrites = useRef<Promise<unknown>>(Promise.resolve());
+  const preferencesRef = useRef({ adsDisabled, soundMuted });
+  preferencesRef.current = { adsDisabled, soundMuted };
+
   /** Persist both ad preferences on the account, best-effort. */
   const pushPreferencesToAccount = useCallback(
     (next: { adsDisabled: boolean; soundMuted: boolean }) => {
       if (!token) return;
-      void fetch(`${apiOrigin}/api/users/me/preferences`, {
+      preferenceWrites.current = preferenceWrites.current.catch(() => {}).then(() => fetch(`${apiOrigin}/api/users/me/preferences`, {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ adPreferences: next }),
-      }).catch(() => {
+      })).then(response => { if (!response.ok) throw new Error("Ad preference save failed"); }).catch(() => {
         // Offline is fine: the device cache below re-syncs on a later change,
         // and the server copy stays whatever it last was.
       });
@@ -187,7 +192,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       const [storedMuted, storedDisabled] = await Promise.all([
         storage.getItemAsync(AD_SOUND_MUTED_KEY),
         accountId !== null
-          ? storage.getItemAsync(`${ADS_DISABLED_KEY}:${accountId}`)
+          ? storage.getItemAsync(`${ADS_DISABLED_KEY}.${accountId}`)
           : Promise.resolve(null),
       ]);
       if (cancelled) return;
@@ -215,7 +220,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     setPreferencesReady(true);
     void Promise.all([
       storage.setItemAsync(AD_SOUND_MUTED_KEY, String(preferences.soundMuted)),
-      storage.setItemAsync(`${ADS_DISABLED_KEY}:${accountId}`, String(preferences.adsDisabled)),
+      storage.setItemAsync(`${ADS_DISABLED_KEY}.${accountId}`, String(preferences.adsDisabled)),
     ]).catch(() => {
       // The verified server answer remains usable if the device cache is full.
     });
@@ -234,10 +239,13 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
 
   const setSoundMuted = useCallback(
     async (muted: boolean) => {
-      await rememberPreferenceChange({ soundMuted: muted });
+      preferencesRef.current = { ...preferencesRef.current, soundMuted: muted };
       setSoundMutedState(muted);
-      await storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted));
-      pushPreferencesToAccount({ adsDisabled, soundMuted: muted });
+      pushPreferencesToAccount(preferencesRef.current);
+      await Promise.all([
+        rememberPreferenceChange({ soundMuted: muted }),
+        storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted)),
+      ]).catch(() => {});
     },
     [adsDisabled, pushPreferencesToAccount, rememberPreferenceChange],
   );
@@ -245,35 +253,21 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const setAdsDisabled = useCallback(
     async (disabled: boolean) => {
       if (disabled && !canDisableAds) return false;
-      await rememberPreferenceChange({ adsDisabled: disabled });
+      preferencesRef.current = { ...preferencesRef.current, adsDisabled: disabled };
       setAdsDisabledState(disabled);
+      pushPreferencesToAccount(preferencesRef.current);
+      await rememberPreferenceChange({ adsDisabled: disabled });
       if (user?.id != null) {
         await storage.setItemAsync(
-          `${ADS_DISABLED_KEY}:${user.id}`,
+          `${ADS_DISABLED_KEY}.${user.id}`,
           String(disabled),
-        );
+        ).catch(() => {});
       }
-      pushPreferencesToAccount({ adsDisabled: disabled, soundMuted });
+
       return true;
     },
     [canDisableAds, pushPreferencesToAccount, soundMuted, user?.id, rememberPreferenceChange],
   );
-
-  useEffect(() => {
-    if (!adsModule || !ready || consentInfo?.canRequestAds !== true) return;
-
-    // Do not call into MobileAds merely because the JS module was imported.
-    // On a cold release launch the module becomes available before UMP and
-    // MobileAds initialization finish. Calling setAppMuted in that interval
-    // can terminate Android at the native boundary instead of producing a JS
-    // error. The readiness and consent guards also keep preference changes
-    // harmless after an ad outage.
-    try {
-      adsModule.default().setAppMuted(soundMuted);
-    } catch {
-      // Ads are optional. A sound-preference failure must never close Casparel.
-    }
-  }, [adsModule, consentInfo, ready, soundMuted]);
 
   useEffect(() => {
     // Waiting until onboarding is complete prevents a system consent sheet

@@ -25,6 +25,7 @@ declare global {
   interface Window {
     adsbygoogle?: unknown[];
     casparelNativeAdReadiness?: boolean;
+    casparelNativeAdClipping?: boolean;
   }
 }
 
@@ -74,6 +75,8 @@ export function InlineAd({ className }: { className?: string }) {
   const nativeSlot = useRef<HTMLElement>(null);
   const [dismissed, setDismissed] = useState(false);
   const [nativeEligible, setNativeEligible] = useState(nativeAdsEligible);
+  const [nativeClippingSupported, setNativeClippingSupported] = useState(() => window.casparelNativeAdClipping === true);
+  const [nativeHeight, setNativeHeight] = useState(NATIVE_AD_SLOT_HEIGHT);
   const [nativeCreativeReady, setNativeCreativeReady] = useState(false);
   const [nativeReadinessSupported, setNativeReadinessSupported] = useState(() => window.casparelNativeAdReadiness === true);
   // Older installed builds do not publish creative readiness. Keep their
@@ -81,7 +84,10 @@ export function InlineAd({ className }: { className?: string }) {
   const nativeSlotReady = !nativeReadinessSupported || nativeCreativeReady;
 
   useEffect(() => {
-    const update = () => setNativeReadinessSupported(window.casparelNativeAdReadiness === true);
+    const update = () => {
+      setNativeReadinessSupported(window.casparelNativeAdReadiness === true);
+      setNativeClippingSupported(window.casparelNativeAdClipping === true);
+    };
     window.addEventListener('casparel-native-ad-support', update);
     return () => window.removeEventListener('casparel-native-ad-support', update);
   }, []);
@@ -93,6 +99,9 @@ export function InlineAd({ className }: { className?: string }) {
       if (!detail || typeof detail !== 'object' || !('id' in detail) || !('ready' in detail)) return;
       if (detail.id === `inline:${location}` && typeof detail.ready === 'boolean') {
         setNativeCreativeReady(detail.ready);
+      }
+      if (detail.id === `inline:${location}` && "height" in detail && typeof detail.height === "number" && detail.height >= 48 && detail.height <= 800) {
+        setNativeHeight(detail.height);
       }
     };
     window.addEventListener('casparel-native-ad-ready', update);
@@ -147,8 +156,15 @@ export function InlineAd({ className }: { className?: string }) {
         const element = nativeSlot.current;
         if (!element) return;
         const rect = element.getBoundingClientRect();
-        const visible =
-          nativeSlotReady && rect.top >= NATIVE_AD_SAFE_TOP && rect.bottom <= window.innerHeight;
+        const main = element.closest('main');
+        const toolbar = main?.querySelector('[data-native-ad-boundary]')?.getBoundingClientRect();
+        const header = document.querySelector('[data-native-ad-header]')?.getBoundingClientRect();
+        const safeTop = Math.max(toolbar?.bottom ?? NATIVE_AD_SAFE_TOP, header?.bottom ?? 0);
+        const clipTop = Math.max(0, Math.min(nativeHeight, safeTop - rect.top));
+        const clipBottom = Math.max(0, Math.min(nativeHeight - clipTop, rect.top + nativeHeight - window.innerHeight));
+        const blocked = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper]'))
+          .some(node => node instanceof HTMLElement && node.getBoundingClientRect().height > 0 && getComputedStyle(node).visibility !== 'hidden');
+        const visible = nativeSlotReady && !document.hidden && !blocked && clipTop + clipBottom < nativeHeight && (nativeClippingSupported || clipTop + clipBottom === 0);
         postToNative({
           type: "native-ad-placement",
           id: placementId,
@@ -157,7 +173,9 @@ export function InlineAd({ className }: { className?: string }) {
           width: rect.width,
           // Keep a valid offscreen loading surface without reserving a blank
           // card in the page. Native reports when a real creative is ready.
-          height: NATIVE_AD_SLOT_HEIGHT,
+          height: nativeHeight,
+          clipTop,
+          clipBottom,
           visible,
         });
       });
@@ -167,12 +185,19 @@ export function InlineAd({ className }: { className?: string }) {
         ? null
         : new ResizeObserver(publish);
     observer?.observe(nativeSlot.current);
+    // Native views cannot participate in DOM z-index. Remove their visible
+    // surface while a sidebar, menu or dialog covers the web content.
+    const overlays = new MutationObserver(publish);
+    overlays.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state', 'aria-hidden', 'style'] });
+    window.addEventListener('visibilitychange', publish);
     window.addEventListener("scroll", publish, true);
     window.addEventListener("resize", publish);
     publish();
     return () => {
       cancelAnimationFrame(frame);
       observer?.disconnect();
+      overlays.disconnect();
+      window.removeEventListener("visibilitychange", publish);
       window.removeEventListener("scroll", publish, true);
       window.removeEventListener("resize", publish);
       postToNative({
@@ -185,7 +210,7 @@ export function InlineAd({ className }: { className?: string }) {
         visible: false,
       });
     };
-  }, [location, nativePlacementEligible, nativeSlotReady]);
+  }, [location, nativePlacementEligible, nativeSlotReady, nativeHeight, nativeClippingSupported]);
 
   const eligible =
     pathAllowsWebAd(location) &&
@@ -211,7 +236,7 @@ export function InlineAd({ className }: { className?: string }) {
         data-testid="native-inline-ad-placeholder"
         data-native-ad-placement={`inline:${location}`}
         className={"w-full min-w-0 max-w-full " + (className ?? "")}
-        style={{ height: nativeSlotReady ? NATIVE_AD_SLOT_HEIGHT : 0, marginBlock: nativeSlotReady ? 16 : 0 }}
+        style={{ height: nativeSlotReady ? nativeHeight : 0, marginBlock: nativeSlotReady ? 16 : 0 }}
       >
         <span className="sr-only">Advertisement</span>
       </aside>
@@ -223,12 +248,16 @@ export function InlineAd({ className }: { className?: string }) {
 
 /** One SDK push per DOM slot; eligibility changes unmount the slot completely. */
 function AdSlot({ className }: { className?: string }) {
+  const [cycle, setCycle] = useState(0);
+  return <AdSenseCreative key={cycle} className={className} onNext={() => setCycle(value => value + 1)} />;
+}
+
+function AdSenseCreative({ className, onNext }: { className?: string; onNext: () => void }) {
   const slot = useRef<HTMLModElement>(null);
-  const [dismissed, setDismissed] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (dismissed || failed) return;
+    if (failed) return;
     let cancelled = false;
     void loadAdSense().then((ready) => {
       if (cancelled || !slot.current) return;
@@ -249,9 +278,9 @@ function AdSlot({ className }: { className?: string }) {
       cancelled = true;
       observer.disconnect();
     };
-  }, [dismissed, failed]);
+  }, [failed]);
 
-  if (dismissed || failed) return null;
+  if (failed) return null;
 
   return (
     <aside
@@ -270,11 +299,9 @@ function AdSlot({ className }: { className?: string }) {
         </span>
         <button
           type="button"
-          // Closing this placement hides this one slot for this page view. It
-          // deliberately does not turn advertising off everywhere: that is the
-          // Disable ads setting, and it belongs to a paid plan.
-          onClick={() => setDismissed(true)}
-          aria-label="Close this advertisement"
+          // AdSense refreshes only on an explicit user request, never on a timer.
+          onClick={onNext}
+          aria-label="Close this ad and show the next"
           className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X className="size-3.5" />

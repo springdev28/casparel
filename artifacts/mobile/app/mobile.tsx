@@ -17,6 +17,7 @@ import {
   BackHandler,
   Linking,
   Platform,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +32,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { SponsoredLearningResourceCard } from '@/components/SponsoredLearningResourceCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
 import { useAds } from '@/contexts/AdsContext';
 import { apiOrigin } from '@/utils/api-host';
 import { shouldShowSponsoredAd } from '@/utils/ad-placement';
@@ -48,6 +50,7 @@ import {
 type NativeMessage =
   | { type: 'session'; token: string }
   | { type: 'logout' }
+  | { type: 'sound-effects'; enabled: boolean }
   | { type: 'language'; language: 'en' | 'tr' }
   | { type: 'ad-preferences'; soundMuted?: boolean; adsDisabled?: boolean }
   | { type: 'notification-preferences'; preferences: NotificationPreferences }
@@ -56,6 +59,7 @@ type NativeMessage =
 
 export default function MobileWebAppScreen() {
   const colors = useColors();
+  const { soundEffectsEnabled, setSoundEffectsEnabled } = useMotion();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ path?: string }>();
@@ -80,6 +84,19 @@ export default function MobileWebAppScreen() {
   const [nativeAdPlacement, setNativeAdPlacement] =
     useState<NativeAdPlacement | null>(null);
 
+  const adScroll = useMemo(() => {
+    let previousY = 0;
+    return PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_event, gesture) => Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => { previousY = 0; },
+      onPanResponderMove: (_event, gesture) => {
+        const delta = previousY - gesture.dy;
+        previousY = gesture.dy;
+        webView.current?.injectJavaScript(`document.querySelector('main')?.scrollBy(0, ${JSON.stringify(delta)}); true;`);
+      },
+    });
+  }, []);
+
   const sessionScript = useMemo(() => {
     const serializedToken = JSON.stringify(token ?? '');
     const serializedLanguage = JSON.stringify(language);
@@ -93,7 +110,10 @@ export default function MobileWebAppScreen() {
           window.localStorage.setItem('schoolar_token', ${serializedToken});
           window.localStorage.setItem('schoolar_language', ${serializedLanguage});
           window.localStorage.setItem('casparel_native_shell', 'true');
+          window.localStorage.setItem('schoolar_sound_effects', ${JSON.stringify(soundEffectsEnabled ? 'on' : 'off')});
+          window.dispatchEvent(new Event('casparel-sound-effects-change'));
           window.casparelNativeAdReadiness = true;
+          window.casparelNativeAdClipping = true;
           window.dispatchEvent(new Event('casparel-native-ad-support'));
           window.localStorage.setItem('casparel_ad_sound_muted', String(${serializedSoundMuted}));
           window.localStorage.setItem('casparel_ads_disabled', String(${serializedAdsDisabled}));
@@ -142,7 +162,7 @@ export default function MobileWebAppScreen() {
       })();
       true;
     `;
-  }, [adsDisabled, canDisableAds, canRequestAds, language, soundMuted, token]);
+  }, [adsDisabled, canDisableAds, canRequestAds, language, soundEffectsEnabled, soundMuted, token]);
 
   useEffect(() => {
     webView.current?.injectJavaScript(sessionScript);
@@ -233,6 +253,8 @@ export default function MobileWebAppScreen() {
         void updateToken(message.token);
       } else if (message.type === 'language') {
         void setLanguage(message.language);
+      } else if (message.type === 'sound-effects' && typeof message.enabled === 'boolean') {
+        setSoundEffectsEnabled(message.enabled);
       } else if (message.type === 'ad-preferences') {
         if (typeof message.soundMuted === 'boolean') {
           void setSoundMuted(message.soundMuted);
@@ -254,20 +276,18 @@ export default function MobileWebAppScreen() {
     }
   }
 
-  const dismissNativeAd = useCallback((placementId: string) => {
-    setNativeAdPlacement((current) =>
-      current?.id === placementId ? { ...current, visible: false } : current,
-    );
-    webView.current?.injectJavaScript(
-      `window.dispatchEvent(new CustomEvent('casparel-native-ad-dismiss', { detail: ${JSON.stringify(placementId)} })); true;`,
-    );
-  }, []);
-
   const nativePlacementId = nativeAdPlacement?.id;
   const updateNativeAdAvailability = useCallback((ready: boolean) => {
     if (!nativePlacementId) return;
     webView.current?.injectJavaScript(
       `window.dispatchEvent(new CustomEvent('casparel-native-ad-ready', { detail: ${JSON.stringify({ id: nativePlacementId, ready })} })); true;`,
+    );
+  }, [nativePlacementId]);
+
+  const updateNativeAdHeight = useCallback((height: number) => {
+    if (!nativePlacementId) return;
+    webView.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('casparel-native-ad-ready', { detail: ${JSON.stringify({ id: nativePlacementId, ready: true, height })} })); true;`,
     );
   }, [nativePlacementId]);
 
@@ -356,26 +376,30 @@ export default function MobileWebAppScreen() {
         ) : null}
         {!load.failed && nativeAdPlacement && shouldShowSponsoredAd(path) && canRequestAds ? (
           <View
+            {...adScroll.panHandlers}
             pointerEvents={nativeAdPlacement.visible ? 'box-none' : 'none'}
             style={[
               styles.nativeAdOverlay,
               {
                 top: nativeAdPlacement.visible
-                  ? nativeAdPlacement.top
+                  ? nativeAdPlacement.top + (nativeAdPlacement.clipTop ?? 0)
                   : -10_000,
                 left: nativeAdPlacement.left,
                 width: nativeAdPlacement.width,
-                height: nativeAdPlacement.height,
+                height: nativeAdPlacement.height - (nativeAdPlacement.clipTop ?? 0) - (nativeAdPlacement.clipBottom ?? 0),
                 opacity: nativeAdPlacement.visible ? 1 : 0,
               },
             ]}
           >
-            <SponsoredLearningResourceCard
-              key={nativeAdPlacement.id}
-              placementId={nativeAdPlacement.id}
-              onAvailabilityChange={updateNativeAdAvailability}
-              onDismiss={() => dismissNativeAd(nativeAdPlacement.id)}
-            />
+            <View style={{ marginTop: -(nativeAdPlacement.clipTop ?? 0) }}>
+              <SponsoredLearningResourceCard
+                key={nativeAdPlacement.id}
+                placementId={nativeAdPlacement.id}
+                onAvailabilityChange={updateNativeAdAvailability}
+                onHeightChange={updateNativeAdHeight}
+                visible={nativeAdPlacement.visible}
+              />
+            </View>
           </View>
         ) : null}
       </View>

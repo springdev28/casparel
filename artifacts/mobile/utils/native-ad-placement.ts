@@ -6,6 +6,8 @@ export interface NativeAdPlacement {
   width: number;
   height: number;
   visible: boolean;
+  clipTop?: number;
+  clipBottom?: number;
 }
 
 const MAX_PLACEMENT_SIZE = 2_048;
@@ -51,11 +53,16 @@ export function parseNativeAdPlacement(
     width <= 0 ||
     width > MAX_PLACEMENT_SIZE ||
     height < 48 ||
-    height > 320
+    height > 800
   ) {
     return null;
   }
+  const clipTop = candidate.clipTop ?? 0;
+  const clipBottom = candidate.clipBottom ?? 0;
+  if (![clipTop, clipBottom].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0) || clipTop + clipBottom > height) return null;
   return {
+    ...(candidate.clipTop !== undefined ? { clipTop } : {}),
+    ...(candidate.clipBottom !== undefined ? { clipBottom } : {}),
     id: candidate.id,
     top,
     left,
