@@ -92,6 +92,7 @@ export function SponsoredLearningResourceCard({
       const unit = adUnitForThisBuild(ads);
       if (!unit) throw new Error('AD_UNIT_UNAVAILABLE');
       const muted = soundMutedRef.current;
+      logAdDiagnostic('ad-requested', { placement: 'inline' });
       const ad = await ads.NativeAd.createForAdRequest(unit, {
         requestNonPersonalizedAdsOnly: true,
         startVideoMuted: muted,
@@ -100,6 +101,7 @@ export function SponsoredLearningResourceCard({
       });
       const loaded: Creative = { nativeAd: ad, ads, muted, destroy: () => ad.destroy() };
       ad.addAdEventListener(ads.NativeAdEventType.IMPRESSION, () => {
+        logAdDiagnostic('ad-displayed', { placement: 'inline' });
         void trackSponsoredAdDisplayed(unit, ad.responseId);
       });
       ad.addAdEventListener(ads.NativeAdEventType.CLICKED, () => {
@@ -127,10 +129,18 @@ export function SponsoredLearningResourceCard({
         if (queue.current === loaded) queue.advance();
       });
       void trackSponsoredAdLoaded(unit, ad.responseId);
+      logAdDiagnostic('ad-loaded', { placement: 'inline' });
       return loaded;
     }, setCreative, error => {
       const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
-      logAdDiagnostic(code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed');
+      // Keep provider messages/identifiers out of logs, but retain the finite
+      // error category needed to distinguish a network problem from no fill.
+      const reason = typeof code === 'string' && /^googleMobileAds\/(?:internal-error|invalid-request|network-error|no-fill|mediation-no-fill|app-id-missing|request-id-mismatch|invalid-ad-string)$/.test(code)
+        ? code.slice('googleMobileAds/'.length)
+        : error instanceof Error && ['AD_REQUEST_TIMEOUT', 'AD_SDK_UNAVAILABLE', 'AD_UNIT_UNAVAILABLE'].includes(error.message)
+          ? error.message.toLowerCase()
+          : 'unknown';
+      logAdDiagnostic(code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed', { reason });
       if (productionAdUnitId) void trackSponsoredAdFailed(productionAdUnitId, code);
     });
     rotation.current = queue;

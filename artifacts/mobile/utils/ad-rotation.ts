@@ -71,20 +71,23 @@ export class AdRotation<T extends AdCreative> {
     if (this.stopped || this.loading || this.next || this.retry) return;
     this.loading = true;
     const generation = ++this.generation;
-    const fail = (error: unknown) => {
-      if (this.stopped || generation !== this.generation) return;
-      this.generation++;
+    const fail = (error: unknown, allowLateResponse = false) => {
+      if (this.stopped || generation !== this.generation || this.retry) return;
+      if (!allowLateResponse) this.generation++;
       this.loading = false;
       clearTimeout(this.timeout);
       this.failed(error);
       this.retry = setTimeout(() => { this.retry = undefined; this.fill(); }, 30_000);
     };
-    // SDK 16 can leave a no-fill request unresolved on Android. Recover even
-    // when the bridge never rejects; dispose any eventual stale response.
-    this.timeout = setTimeout(() => fail(new Error('AD_REQUEST_TIMEOUT')), 20_000);
+    // Google can spend 60 seconds on a network request. The old 20-second
+    // deadline destroyed successful slow responses. This is only a watchdog
+    // for a silent bridge: accept a late creative until a retry actually starts.
+    this.timeout = setTimeout(() => fail(new Error('AD_REQUEST_TIMEOUT'), true), 90_000);
     void this.load().then(ad => {
       if (this.stopped || generation !== this.generation) { ad.destroy(); return; }
       clearTimeout(this.timeout);
+      clearTimeout(this.retry);
+      this.retry = undefined;
       this.loading = false;
       if (!this.current) {
         this.current = ad;

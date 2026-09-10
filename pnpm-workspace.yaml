@@ -114,6 +114,7 @@ allowBuilds:
 
 patchedDependencies:
   esbuild@0.28.1: patches/esbuild@0.28.1.patch
+  react-native-google-mobile-ads@16.0.0: patches/react-native-google-mobile-ads@16.0.0.patch
 
 overrides:
   # Security floors for Expo/Metro transitive tooling. Keep the range on the
