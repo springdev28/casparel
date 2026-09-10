@@ -522,6 +522,7 @@ const CONVERSATION = {
  * Ordered roughly as the app requests them.
  */
 export const FIXTURES = {
+  "/api/resources/provenance-showcase": { personalised: false, entries: [] },
   "/api/users/me": USER,
   "/api/users/me/usage": USAGE,
   "/api/users/me/preferences": PREFERENCES,
