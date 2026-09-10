@@ -148,6 +148,15 @@ export function useAuthLanguage() {
     document.documentElement.lang = language;
   }, [language]);
 
+  useEffect(() => {
+    const syncLanguage = (event: Event) => {
+      const next = (event as CustomEvent<AuthLanguage>).detail;
+      if (AUTH_LANGUAGES.some((entry) => entry.code === next)) setLanguageState(next);
+    };
+    document.addEventListener("schoolar-language-change", syncLanguage);
+    return () => document.removeEventListener("schoolar-language-change", syncLanguage);
+  }, []);
+
   function setLanguage(next: AuthLanguage) {
     try {
       localStorage.setItem(AUTH_LANGUAGE_KEY, next);

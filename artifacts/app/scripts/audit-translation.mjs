@@ -295,6 +295,13 @@ async function collect(pagePath, language, signedIn, viewport, role) {
     signedOut: !signedIn,
   });
   const page = await context.newPage();
+  const renderErrors = [];
+  page.on("pageerror", (error) => renderErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("Casparel render error")) {
+      renderErrors.push(message.text());
+    }
+  });
   await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
     waitUntil: "networkidle",
     timeout: 45000,
@@ -355,6 +362,7 @@ async function collect(pagePath, language, signedIn, viewport, role) {
   await page.waitForTimeout(300);
   const strings = await page.evaluate(COLLECT);
   await context.close();
+  if (renderErrors.length) throw new Error(renderErrors.join("; "));
   return strings;
 }
 
@@ -513,6 +521,10 @@ console.log(
  */
 if (checked === 0) {
   console.error("No page rendered. This run checked nothing.");
+  process.exit(2);
+}
+if (findings.some((finding) => !finding)) {
+  console.error("Some pages could not be checked. An error screen is not a translation pass.");
   process.exit(2);
 }
 if (total > BUDGET) {

@@ -1030,9 +1030,9 @@ export default function AppShell({ children }: AppShellProps) {
                 className="w-full text-primary-foreground/80 [&_select]:min-w-0 [&_select]:flex-1"
                 onChange={(next) => {
                   setLanguage(next);
-                  void updateAccountPreferences
-                    .mutateAsync({ language: next })
-                    .finally(() => window.location.reload());
+                  updateAccountPreferences.mutate({ language: next }, {
+                    onError: () => toast({ title: "Could not save language", variant: "destructive" }),
+                  });
                 }}
               />
             </div>
@@ -1186,9 +1186,9 @@ export default function AppShell({ children }: AppShellProps) {
                       className="w-full gap-0 text-white [&>svg]:hidden"
                       onChange={(next) => {
                         setLanguage(next);
-                        void updateAccountPreferences
-                          .mutateAsync({ language: next })
-                          .finally(() => window.location.reload());
+                        updateAccountPreferences.mutate({ language: next }, {
+                          onError: () => toast({ title: "Could not save language", variant: "destructive" }),
+                        });
                       }}
                     />
                   </div>
