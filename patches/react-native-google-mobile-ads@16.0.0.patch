@@ -1,0 +1,47 @@
+diff --git a/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt b/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
+index 6e70fdd7199d51336d2c3e11b6de32fffc745003..8601005233fe23d5868218e985b5c15305934219 100644
+--- a/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
++++ b/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsNativeModule.kt
+@@ -24,6 +24,7 @@ import com.facebook.react.bridge.ReactMethod
+ import com.facebook.react.bridge.ReadableMap
+ import com.facebook.react.module.annotations.ReactModule
+ import com.google.android.gms.ads.AdListener
++import com.google.android.gms.ads.LoadAdError
+ import com.google.android.gms.ads.AdLoader
+ import com.google.android.gms.ads.MediaAspectRatio
+ import com.google.android.gms.ads.VideoController.VideoLifecycleCallbacks
+@@ -41,9 +42,14 @@ class ReactNativeGoogleMobileAdsNativeModule(
+ 
+   @ReactMethod
+   override fun load(adUnitId: String, requestOptions: ReadableMap, promise: Promise) {
+-    val holder = NativeAdHolder(adUnitId, requestOptions)
++    val holder = NativeAdHolder(adUnitId, requestOptions, promise)
+     holder.loadAd { nativeAd ->
+-      val responseId = nativeAd.responseInfo?.responseId ?: return@loadAd
++      val responseId = nativeAd.responseInfo?.responseId
++      if (responseId == null) {
++        nativeAd.destroy()
++        promise.reject("googleMobileAds/internal-error", "Native ad response has no response ID")
++        return@loadAd
++      }
+       adHolders[responseId] = holder
+ 
+       val data = Arguments.createMap()
+@@ -97,11 +103,16 @@ class ReactNativeGoogleMobileAdsNativeModule(
+     return adHolders[responseId]?.nativeAd
+   }
+ 
+-  private inner class NativeAdHolder(private val adUnitId: String, private val requestOptions: ReadableMap) {
++  private inner class NativeAdHolder(private val adUnitId: String, private val requestOptions: ReadableMap, private val loadPromise: Promise) {
+     var nativeAd: NativeAd? = null
+       private set
+ 
+     private val adListener: AdListener = object : AdListener() {
++      override fun onAdFailedToLoad(error: LoadAdError) {
++        val details = ReactNativeGoogleMobileAdsCommon.getCodeAndMessageFromAdError(error)
++        loadPromise.reject("googleMobileAds/" + details[0], details[1])
++      }
++
+       override fun onAdImpression() {
+         emitAdEvent("impression")
+       }
