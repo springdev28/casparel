@@ -80,8 +80,9 @@ const NO_TRANSLATE_SELECTOR =
  */
 const NO_TRANSLATE_ATTRIBUTES_SELECTOR = '[translate="no"], [data-user-content]';
 
-const TEXT_ORIGINALS = new WeakMap<Text, string>();
-const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, string>>();
+type TranslationMemory = { source: string; rendered: string };
+const TEXT_ORIGINALS = new WeakMap<Text, TranslationMemory>();
+const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, TranslationMemory>>();
 const TRANSLATED_ATTRIBUTES = ["aria-label", "placeholder", "title", "alt"] as const;
 
 function currentLanguage(): AuthLanguage {
@@ -110,19 +111,17 @@ function isProtected(node: Node): boolean {
  */
 function sourceFor(
   current: string,
-  remembered: string | undefined,
-  language: AuthLanguage,
+  remembered: TranslationMemory | undefined,
 ): string {
   if (remembered === undefined) return current;
-  if (current === remembered) return remembered;
-  if (current === translateUiString(remembered, language)) return remembered;
+  if (current === remembered.source || current === remembered.rendered) return remembered.source;
   return current;
 }
 
 function translateText(node: Text, language: AuthLanguage) {
-  const source = sourceFor(node.data, TEXT_ORIGINALS.get(node), language);
-  TEXT_ORIGINALS.set(node, source);
+  const source = sourceFor(node.data, TEXT_ORIGINALS.get(node));
   const next = translateUiString(source, language);
+  TEXT_ORIGINALS.set(node, { source, rendered: next });
   if (node.data !== next) node.data = next;
 }
 
@@ -136,9 +135,9 @@ function translateAttributes(element: Element, language: AuthLanguage) {
   for (const attribute of TRANSLATED_ATTRIBUTES) {
     const current = element.getAttribute(attribute);
     if (current === null) continue;
-    const source = sourceFor(current, originals.get(attribute), language);
-    originals.set(attribute, source);
+    const source = sourceFor(current, originals.get(attribute));
     const next = translateUiString(source, language);
+    originals.set(attribute, { source, rendered: next });
     if (current !== next) element.setAttribute(attribute, next);
   }
 }
@@ -165,7 +164,7 @@ function translateSubtree(root: Node, language: AuthLanguage) {
    * Every static one is reached as a descendant of the initial pass and
    * translated fine, which is why this looked like it worked.
    */
-  if (root.matches(NO_TRANSLATE_ATTRIBUTES_SELECTOR)) return;
+  if (root.closest(NO_TRANSLATE_ATTRIBUTES_SELECTOR)) return;
   translateAttributes(root, language);
   // Content protected, attributes already handled: nothing left to walk into.
   if (root.matches(NO_TRANSLATE_SELECTOR)) return;

@@ -180,10 +180,24 @@ function UiTranslationRuntime() {
 
   useEffect(() => {
     const handleLanguage = (event: Event) => {
-      setEnabled(hasDictionary((event as CustomEvent<AuthLanguage>).detail));
+      // Keep the bridge mounted when returning to English so it can restore
+      // the original text and continue tracking React's subsequent updates.
+      setEnabled((wasEnabled) => wasEnabled || hasDictionary((event as CustomEvent<AuthLanguage>).detail));
+    };
+    // Installed mobile builds send this on window. Forward it to the same
+    // document event used by web controls, dates, and the translation bridge.
+    const handleNativeLanguage = (event: Event) => {
+      if (event.target !== window) return;
+      document.dispatchEvent(new CustomEvent(LANGUAGE_EVENT, {
+        detail: (event as CustomEvent<AuthLanguage>).detail,
+      }));
     };
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
-    return () => document.removeEventListener(LANGUAGE_EVENT, handleLanguage);
+    window.addEventListener(LANGUAGE_EVENT, handleNativeLanguage);
+    return () => {
+      document.removeEventListener(LANGUAGE_EVENT, handleLanguage);
+      window.removeEventListener(LANGUAGE_EVENT, handleNativeLanguage);
+    };
   }, []);
 
   if (!enabled) return null;

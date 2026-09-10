@@ -179,7 +179,7 @@ const SHAPE_RULES: Array<{
   {
     match: /^(\d[\d.,]*)% mastery evidence$/,
     render: {
-      tr: (n) => `%${n} ustalık kanıtı`,
+      tr: (n) => `%${n} öğrenme ilerlemesi`,
     },
   },
   {
@@ -217,7 +217,7 @@ const SHAPE_RULES: Array<{
   {
     match: /^(\d[\d.,]*) check-ins$/,
     render: {
-      tr: (n) => `${n} kontrol`,
+      tr: (n) => `${n} öz değerlendirme`,
     },
   },
   {
@@ -337,7 +337,7 @@ const SHAPE_RULES: Array<{
      */
     match: /^(\d[\d.,]*) named collaborators?$/,
     render: {
-      tr: (n) => `${n} adlı ortak`,
+      tr: (n) => `${n} belirlenmiş ortak`,
     },
   },
   {

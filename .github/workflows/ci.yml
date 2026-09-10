@@ -203,6 +203,10 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-native-ads.mjs
 
+      - name: Audit language switching inside the mobile workspace
+        working-directory: artifacts/app
+        run: node scripts/audit-language-switch.mjs
+
       - name: Audit ad controls and interaction feedback
         run: |
           node artifacts/mobile/scripts/audit-ad-controls.mjs

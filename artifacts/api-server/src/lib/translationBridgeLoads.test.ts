@@ -76,7 +76,7 @@ describe("the translation bridge", () => {
 
   it("loads for a language change too, by the same rule", () => {
     expect(entry).toContain(
-      "setEnabled(hasDictionary((event as CustomEvent<AuthLanguage>).detail));",
+      "wasEnabled || hasDictionary((event as CustomEvent<AuthLanguage>).detail)",
     );
   });
 
